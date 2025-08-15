@@ -3,10 +3,11 @@ import mysql.connector
 import os
 import boto3
 import base as b  
-# from app import application
+from dotenv import load_dotenv
+
+load_dotenv()  # Load .env file for local development
 
 
-    
 # from sqlalchemy import create_engine
 # import psycopg2
 
@@ -20,36 +21,51 @@ app = Flask(__name__)
 #     books = conn.execute("SELECT * FROM books LIMIT 10").fetchall()
 #     return jsonify([dict(book) for book in books])
 
-# Railway MySQL connection
+
+# Database - Railway MySQL connection
 def get_db():
     try:
-        db_user = os.getenv('DB_USER', 'root')
-        db_pass = os.getenv('DB_PASSWORD', 'xpbwmzchXSacGsreDkLWIpecGCeVqymd')
-        db_name = os.getenv('DB_NAME', 'railway')
-        db_host = os.getenv('DB_HOST', 'shuttle.proxy.rlwy.net')
-        db_port = int(os.getenv('DB_PORT', '46029'))
-        # db_host = os.getenv('DB_HOST', 'mysql.railway.internal')
-        # db_port = int(os.getenv('DB_PORT', '3306'))
-
-        print(f"Attempting connection to: {db_user}@{db_host}:{db_port}/{db_name}")
-
         return mysql.connector.connect(
-            host=db_host,
-            user=db_user,
-            password=db_pass,
-            database=db_name,
-            port=db_port
+            host=b.DB_HOST,
+            user=b.DB_USER,
+            password=b.DB_PASSWORD,
+            database=b.DB_NAME,
+            port=int(b.DB_PORT)
         )
-
-    except ValueError as ve:
-        print(f"Port conversion error: {str(ve)}")
-        return None
-    except mysql.connector.Error as err:
-        print(f"MySQL Connection Error: {err}")
-        return None
     except Exception as e:
-        print(f"General connection error: {str(e)}")
+        print(f"DB Error: {str(e)}")
         return None
+    
+
+# def get_db():
+#     try:
+#         db_user = os.getenv('DB_USER', 'root')
+#         db_pass = os.getenv('DB_PASSWORD', 'xpbwmzchXSacGsreDkLWIpecGCeVqymd')
+#         db_name = os.getenv('DB_NAME', 'railway')
+#         db_host = os.getenv('DB_HOST', 'shuttle.proxy.rlwy.net')
+#         db_port = int(os.getenv('DB_PORT', '46029'))
+#         # db_host = os.getenv('DB_HOST', 'mysql.railway.internal')
+#         # db_port = int(os.getenv('DB_PORT', '3306'))
+
+#         print(f"Attempting connection to: {db_user}@{db_host}:{db_port}/{db_name}")
+
+#         return mysql.connector.connect(
+#             host=db_host,
+#             user=db_user,
+#             password=db_pass,
+#             database=db_name,
+#             port=db_port
+#         )
+
+#     except ValueError as ve:
+#         print(f"Port conversion error: {str(ve)}")
+#         return None
+#     except mysql.connector.Error as err:
+#         print(f"MySQL Connection Error: {err}")
+#         return None
+#     except Exception as e:
+#         print(f"General connection error: {str(e)}")
+#         return None
 
     
 
@@ -59,6 +75,7 @@ def home():
         db = get_db()
         if db is None:
             return jsonify({"error": "Database connection failed"}), 500
+            # return jsonify({"error": "DB connection failed", "env": dict(os.environ)}), 500
         
         cursor = db.cursor(dictionary=True)
         # cursor.execute("SELECT 1")  # Simple test query first
@@ -73,9 +90,8 @@ def home():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     
-
+# Storage - Backblaze connection
 def upload_to_b2(file_path):
-    # Correct Backblaze endpoint format
     s3 = boto3.client(
         's3',
         endpoint_url=b.B2_ENDPOINT,
@@ -114,7 +130,4 @@ if __name__ == "__main__":
     #         app.run(host="0.0.0.0", port=8000)
 
     app.run(host="0.0.0.0", port=8000)
-    # application.run()
-
-
-
+    
