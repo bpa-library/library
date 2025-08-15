@@ -6,5 +6,5 @@ app = Flask(__name__)
 def home():
     return "Audio Book Portal - Hello World!"
 
-# For WSGI compatibility
+# Vercel requires this WSGI entry point
 application = app
