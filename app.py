@@ -4,10 +4,13 @@ import os
 import boto3
 #import base as b  
 from dotenv import load_dotenv
+from serverless_wsgi import handle_request
 
 load_dotenv()  # Load .env file for local development
 
-
+def handler(event, context):
+    return handle_request(app, event, context)
+    
 # from sqlalchemy import create_engine
 # import psycopg2
 
@@ -30,7 +33,7 @@ def get_db():
             user=os.getenv('DB_USER'),
             password=os.getenv('DB_PASSWORD'),
             database=os.getenv('DB_NAME'),
-            port=int(os.getenv('DB_PORT')) 
+            port=int(os.getenv('DB_PORT'))  # Default to 3306 if not set
         )
     except Exception as e:
         print(f"DB Error: {str(e)}")
@@ -126,25 +129,25 @@ def upload_to_b2(file_path):
 if __name__ == "__main__":
 
     print("Testing database connection...")
-    test_db = get_db()
-    if test_db:
-        print("✅ Database connection successful!")
-        test_db.close()
-    else:
-        print("❌ Database connection failed - check credentials")
+    # test_db = get_db()
+    # if test_db:
+    #     print("✅ Database connection successful!")
+    #     test_db.close()
+    # else:
+    #     print("❌ Database connection failed - check credentials")
 
-    # Test upload
-    file_path = r"E:\Books-Audible\The Girl in Room 105 (Hindi)\Chapter 05.mp3"
+    # # Test upload
+    # file_path = r"E:\Books-Audible\The Girl in Room 105 (Hindi)\Chapter 05.mp3"
     
-    # Verify file exists first
-    if not os.path.exists(file_path):
-        print(f"Error: File not found at {file_path}")
-    else:
-        if upload_to_b2(file_path):
-            print("Starting Flask server...")
-            app.run(host="0.0.0.0", port=8000)
+    # # Verify file exists first
+    # if not os.path.exists(file_path):
+    #     print(f"Error: File not found at {file_path}")
+    # else:
+    #     if upload_to_b2(file_path):
+    #         print("Starting Flask server...")
+    #         app.run(host="0.0.0.0", port=8000)
 
-    # app.run(host="0.0.0.0", port=8000)
+    app.run(host="0.0.0.0", port=8000)
     
 
 
