@@ -2,7 +2,7 @@ from flask import Flask, jsonify
 import mysql.connector
 import os
 import boto3
-import base as b  
+#import base as b  
 from dotenv import load_dotenv
 
 load_dotenv()  # Load .env file for local development
@@ -26,15 +26,29 @@ app = Flask(__name__)
 def get_db():
     try:
         return mysql.connector.connect(
-            host=b.DB_HOST,
-            user=b.DB_USER,
-            password=b.DB_PASSWORD,
-            database=b.DB_NAME,
-            port=int(b.DB_PORT)
+            host=os.getenv('DB_HOST'),  # Get from environment
+            user=os.getenv('DB_USER'),
+            password=os.getenv('DB_PASSWORD'),
+            database=os.getenv('DB_NAME'),
+            port=int(os.getenv('DB_PORT')) 
         )
     except Exception as e:
         print(f"DB Error: {str(e)}")
         return None
+
+
+# def get_db():
+#     try:
+#         return mysql.connector.connect(
+#             host=b.DB_HOST,
+#             user=b.DB_USER,
+#             password=b.DB_PASSWORD,
+#             database=b.DB_NAME,
+#             port=int(b.DB_PORT)
+#         )
+#     except Exception as e:
+#         print(f"DB Error: {str(e)}")
+#         return None
     
 
 # def get_db():
@@ -94,15 +108,16 @@ def home():
 def upload_to_b2(file_path):
     s3 = boto3.client(
         's3',
-        endpoint_url=b.B2_ENDPOINT,
-        aws_access_key_id=b.B2_KEY_ID,
-        aws_secret_access_key=b.B2_APP_KEY
+        endpoint_url=os.getenv('B2_ENDPOINT'),
+        aws_access_key_id=os.getenv('B2_KEY_ID'),
+        aws_secret_access_key=os.getenv('B2_APP_KEY')
     )
     
     try:
         file_name = os.path.basename(file_path)
-        s3.upload_file(file_path, b.B2_BUCKET, file_name)
-        print(f"Successfully uploaded {file_name} to {b.B2_BUCKET}")
+        B2_BUCKET = os.getenv('B2_BUCKET')
+        s3.upload_file(file_path, B2_BUCKET, file_name)
+        print(f"Successfully uploaded {file_name} to {B2_BUCKET}")
         return True
     except Exception as e:
         print(f"Upload failed: {str(e)}")
@@ -119,15 +134,17 @@ if __name__ == "__main__":
         print("❌ Database connection failed - check credentials")
 
     # Test upload
-    #file_path = r"E:\Books-Audible\The Girl in Room 105 (Hindi)\Chapter 03.mp3"
+    file_path = r"E:\Books-Audible\The Girl in Room 105 (Hindi)\Chapter 05.mp3"
     
     # Verify file exists first
-    # if not os.path.exists(file_path):
-    #     print(f"Error: File not found at {file_path}")
-    # else:
-    #     if upload_to_b2(file_path):
-    #         print("Starting Flask server...")
-    #         app.run(host="0.0.0.0", port=8000)
+    if not os.path.exists(file_path):
+        print(f"Error: File not found at {file_path}")
+    else:
+        if upload_to_b2(file_path):
+            print("Starting Flask server...")
+            app.run(host="0.0.0.0", port=8000)
 
-    app.run(host="0.0.0.0", port=8000)
+    # app.run(host="0.0.0.0", port=8000)
     
+
+
