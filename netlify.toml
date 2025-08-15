@@ -1,3 +1,6 @@
 [build]
-  command = "pyenv install 3.11.8 && pyenv global 3.11.8 && pip install -r requirements.txt && gunicorn app:app"
+  command = "python -m pip install --upgrade pip && pip install -r requirements.txt && gunicorn app:app"
   publish = "/"
+
+[build.environment]
+  PYTHON_VERSION = "3.10.13"
