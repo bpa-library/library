@@ -3,7 +3,10 @@ import mysql.connector
 import os
 import boto3
 import base as b  
+# from app import application
 
+
+    
 # from sqlalchemy import create_engine
 # import psycopg2
 
@@ -111,6 +114,7 @@ if __name__ == "__main__":
     #         app.run(host="0.0.0.0", port=8000)
 
     app.run(host="0.0.0.0", port=8000)
+    # application.run()
 
 
 
