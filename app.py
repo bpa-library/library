@@ -10,7 +10,7 @@ load_dotenv()  # Load .env file for local development
 
 def handler(event, context):
     return handle_request(app, event, context)
-    
+
 # from sqlalchemy import create_engine
 # import psycopg2
 
@@ -108,33 +108,33 @@ def home():
         return jsonify({"error": str(e)}), 500
     
 # Storage - Backblaze connection
-def upload_to_b2(file_path):
-    s3 = boto3.client(
-        's3',
-        endpoint_url=os.getenv('B2_ENDPOINT'),
-        aws_access_key_id=os.getenv('B2_KEY_ID'),
-        aws_secret_access_key=os.getenv('B2_APP_KEY')
-    )
+# def upload_to_b2(file_path):
+#     s3 = boto3.client(
+#         's3',
+#         endpoint_url=os.getenv('B2_ENDPOINT'),
+#         aws_access_key_id=os.getenv('B2_KEY_ID'),
+#         aws_secret_access_key=os.getenv('B2_APP_KEY')
+#     )
     
-    try:
-        file_name = os.path.basename(file_path)
-        B2_BUCKET = os.getenv('B2_BUCKET')
-        s3.upload_file(file_path, B2_BUCKET, file_name)
-        print(f"Successfully uploaded {file_name} to {B2_BUCKET}")
-        return True
-    except Exception as e:
-        print(f"Upload failed: {str(e)}")
-        return False
+#     try:
+#         file_name = os.path.basename(file_path)
+#         B2_BUCKET = os.getenv('B2_BUCKET')
+#         s3.upload_file(file_path, B2_BUCKET, file_name)
+#         print(f"Successfully uploaded {file_name} to {B2_BUCKET}")
+#         return True
+#     except Exception as e:
+#         print(f"Upload failed: {str(e)}")
+#         return False
 
 if __name__ == "__main__":
 
     print("Testing database connection...")
-    # test_db = get_db()
-    # if test_db:
-    #     print("✅ Database connection successful!")
-    #     test_db.close()
-    # else:
-    #     print("❌ Database connection failed - check credentials")
+    test_db = get_db()
+    if test_db:
+        print("✅ Database connection successful!")
+        test_db.close()
+    else:
+        print("❌ Database connection failed - check credentials")
 
     # # Test upload
     # file_path = r"E:\Books-Audible\The Girl in Room 105 (Hindi)\Chapter 05.mp3"
