@@ -1,4 +1,5 @@
 flask==2.3.2
+werkzeug==2.3.7
 mysql-connector-python==8.0.33
 boto3==1.26.142
 python-dotenv==1.0.0
