@@ -8,8 +8,8 @@ from dotenv import load_dotenv
 
 load_dotenv()  # Load .env file for local development
 
-def handler(event, context):
-    return handle_request(app, event, context)
+# def handler(event, context):
+#     return handle_request(app, event, context)
 
 
 # from sqlalchemy import create_engine
@@ -108,8 +108,6 @@ def home():
 
         cursor.execute("SELECT * FROM books LIMIT 10")
         books = cursor.fetchall()
-
-
         return jsonify({"books": books})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
