@@ -11,12 +11,20 @@ load_dotenv()  # Load .env file for local development
 def handler(event, context):
     return handle_request(app, event, context)
 
+
 # from sqlalchemy import create_engine
 # import psycopg2
 
 # engine = create_engine(b.postgresql_DATABASE_URL)
 
 app = Flask(__name__)
+
+@app.route('/debug')
+def debug():
+    return jsonify({
+        "db_status": "Connected" if get_db() else "Failed",
+        "env_vars": {k:v for k,v in os.environ.items() if k.startswith('DB_')}
+    })
 
 # @app.route('/books')
 # def get_books():
