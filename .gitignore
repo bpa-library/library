@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+*.egg
+.python-version
+env/
+venv/
+.env
+
+# Node/vercel
+node_modules/
+.vercel/
+.next/
+
+# IDE
+.vscode/
+.idea/
+
+# System
+.DS_Store
