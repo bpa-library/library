@@ -1,10 +1,10 @@
 from flask import Flask, jsonify
 import mysql.connector
 import os
-import boto3
+#import boto3
 #import base as b  
 from dotenv import load_dotenv
-from serverless_wsgi import handle_request
+#from serverless_wsgi import handle_request
 
 load_dotenv()  # Load .env file for local development
 
@@ -100,13 +100,14 @@ def home():
 
         cursor.execute("SELECT * FROM books LIMIT 10")
         books = cursor.fetchall()
-        cursor.close()
-        db.close()
+
 
         return jsonify({"books": books})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-    
+    finally:
+        if 'cursor' in locals(): cursor.close()
+        if 'db' in locals(): db.close()
 # Storage - Backblaze connection
 # def upload_to_b2(file_path):
 #     s3 = boto3.client(
