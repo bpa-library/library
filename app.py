@@ -4,11 +4,11 @@ import os
 #import boto3
 #import base as b  
 
-#from dotenv import load_dotenv
+from dotenv import load_dotenv
 
 #from serverless_wsgi import handle_request
 
-#load_dotenv()  # Load .env file for local development
+load_dotenv()  # Load .env file for local development
 
 # def handler(event, context):
 #     return handle_request(app, event, context)
@@ -40,18 +40,18 @@ def debug():
 
 
 # Database - Railway MySQL connection
-# def get_db():
-#     try:
-#         return mysql.connector.connect(
-#             host=os.getenv('DB_HOST'),  # Get from environment
-#             user=os.getenv('DB_USER'),
-#             password=os.getenv('DB_PASSWORD'),
-#             database=os.getenv('DB_NAME'),
-#             port=int(os.getenv('DB_PORT'))  # Default to 3306 if not set
-#         )
-#     except Exception as e:
-#         print(f"DB Error: {str(e)}")
-#         return None
+def get_db():
+    try:
+        return mysql.connector.connect(
+            host=os.getenv('DB_HOST'),  # Get from environment
+            user=os.getenv('DB_USER'),
+            password=os.getenv('DB_PASSWORD'),
+            database=os.getenv('DB_NAME'),
+            port=int(os.getenv('DB_PORT'))  # Default to 3306 if not set
+        )
+    except Exception as e:
+        print(f"DB Error: {str(e)}")
+        return None
 
 
 # def get_db():
@@ -68,35 +68,35 @@ def debug():
 #         return None
     
 
-def get_db():
-    try:
-        db_user = os.getenv('DB_USER', 'root')
-        db_pass = os.getenv('DB_PASSWORD', 'xpbwmzchXSacGsreDkLWIpecGCeVqymd')
-        db_name = os.getenv('DB_NAME', 'railway')
-        db_host = os.getenv('DB_HOST', 'shuttle.proxy.rlwy.net')
-        db_port = int(os.getenv('DB_PORT', '46029'))
-        # db_host = os.getenv('DB_HOST', 'mysql.railway.internal')
-        # db_port = int(os.getenv('DB_PORT', '3306'))
+# def get_db():
+#     try:
+#         db_user = os.getenv('DB_USER', 'root')
+#         db_pass = os.getenv('DB_PASSWORD', 'xpbwmzchXSacGsreDkLWIpecGCeVqymd')
+#         db_name = os.getenv('DB_NAME', 'railway')
+#         db_host = os.getenv('DB_HOST', 'shuttle.proxy.rlwy.net')
+#         db_port = int(os.getenv('DB_PORT', '46029'))
+#         # db_host = os.getenv('DB_HOST', 'mysql.railway.internal')
+#         # db_port = int(os.getenv('DB_PORT', '3306'))
 
-        print(f"Attempting connection to: {db_user}@{db_host}:{db_port}/{db_name}")
+#         print(f"Attempting connection to: {db_user}@{db_host}:{db_port}/{db_name}")
 
-        return mysql.connector.connect(
-            host=db_host,
-            user=db_user,
-            password=db_pass,
-            database=db_name,
-            port=db_port
-        )
+#         return mysql.connector.connect(
+#             host=db_host,
+#             user=db_user,
+#             password=db_pass,
+#             database=db_name,
+#             port=db_port
+#         )
 
-    except ValueError as ve:
-        print(f"Port conversion error: {str(ve)}")
-        return None
-    except mysql.connector.Error as err:
-        print(f"MySQL Connection Error: {err}")
-        return None
-    except Exception as e:
-        print(f"General connection error: {str(e)}")
-        return None
+#     except ValueError as ve:
+#         print(f"Port conversion error: {str(ve)}")
+#         return None
+#     except mysql.connector.Error as err:
+#         print(f"MySQL Connection Error: {err}")
+#         return None
+#     except Exception as e:
+#         print(f"General connection error: {str(e)}")
+#         return None
 
     
 
@@ -120,6 +120,7 @@ def home():
     finally:
         if 'cursor' in locals(): cursor.close()
         if 'db' in locals(): db.close()
+
 # Storage - Backblaze connection
 # def upload_to_b2(file_path):
 #     s3 = boto3.client(
