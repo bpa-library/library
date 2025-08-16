@@ -3,10 +3,12 @@ import mysql.connector
 import os
 #import boto3
 #import base as b  
-from dotenv import load_dotenv
+
+#from dotenv import load_dotenv
+
 #from serverless_wsgi import handle_request
 
-load_dotenv()  # Load .env file for local development
+#load_dotenv()  # Load .env file for local development
 
 # def handler(event, context):
 #     return handle_request(app, event, context)
