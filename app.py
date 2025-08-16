@@ -22,7 +22,7 @@ app = Flask(__name__)
 @app.route('/health')
 def health():
     return jsonify({"status": "healthy", "db": "ok" if get_db() else "down"})
-    
+
 @app.route('/debug')
 def debug():
     return jsonify({
@@ -38,18 +38,18 @@ def debug():
 
 
 # Database - Railway MySQL connection
-def get_db():
-    try:
-        return mysql.connector.connect(
-            host=os.getenv('DB_HOST'),  # Get from environment
-            user=os.getenv('DB_USER'),
-            password=os.getenv('DB_PASSWORD'),
-            database=os.getenv('DB_NAME'),
-            port=int(os.getenv('DB_PORT'))  # Default to 3306 if not set
-        )
-    except Exception as e:
-        print(f"DB Error: {str(e)}")
-        return None
+# def get_db():
+#     try:
+#         return mysql.connector.connect(
+#             host=os.getenv('DB_HOST'),  # Get from environment
+#             user=os.getenv('DB_USER'),
+#             password=os.getenv('DB_PASSWORD'),
+#             database=os.getenv('DB_NAME'),
+#             port=int(os.getenv('DB_PORT'))  # Default to 3306 if not set
+#         )
+#     except Exception as e:
+#         print(f"DB Error: {str(e)}")
+#         return None
 
 
 # def get_db():
@@ -66,35 +66,35 @@ def get_db():
 #         return None
     
 
-# def get_db():
-#     try:
-#         db_user = os.getenv('DB_USER', 'root')
-#         db_pass = os.getenv('DB_PASSWORD', 'xpbwmzchXSacGsreDkLWIpecGCeVqymd')
-#         db_name = os.getenv('DB_NAME', 'railway')
-#         db_host = os.getenv('DB_HOST', 'shuttle.proxy.rlwy.net')
-#         db_port = int(os.getenv('DB_PORT', '46029'))
-#         # db_host = os.getenv('DB_HOST', 'mysql.railway.internal')
-#         # db_port = int(os.getenv('DB_PORT', '3306'))
+def get_db():
+    try:
+        db_user = os.getenv('DB_USER', 'root')
+        db_pass = os.getenv('DB_PASSWORD', 'xpbwmzchXSacGsreDkLWIpecGCeVqymd')
+        db_name = os.getenv('DB_NAME', 'railway')
+        db_host = os.getenv('DB_HOST', 'shuttle.proxy.rlwy.net')
+        db_port = int(os.getenv('DB_PORT', '46029'))
+        # db_host = os.getenv('DB_HOST', 'mysql.railway.internal')
+        # db_port = int(os.getenv('DB_PORT', '3306'))
 
-#         print(f"Attempting connection to: {db_user}@{db_host}:{db_port}/{db_name}")
+        print(f"Attempting connection to: {db_user}@{db_host}:{db_port}/{db_name}")
 
-#         return mysql.connector.connect(
-#             host=db_host,
-#             user=db_user,
-#             password=db_pass,
-#             database=db_name,
-#             port=db_port
-#         )
+        return mysql.connector.connect(
+            host=db_host,
+            user=db_user,
+            password=db_pass,
+            database=db_name,
+            port=db_port
+        )
 
-#     except ValueError as ve:
-#         print(f"Port conversion error: {str(ve)}")
-#         return None
-#     except mysql.connector.Error as err:
-#         print(f"MySQL Connection Error: {err}")
-#         return None
-#     except Exception as e:
-#         print(f"General connection error: {str(e)}")
-#         return None
+    except ValueError as ve:
+        print(f"Port conversion error: {str(ve)}")
+        return None
+    except mysql.connector.Error as err:
+        print(f"MySQL Connection Error: {err}")
+        return None
+    except Exception as e:
+        print(f"General connection error: {str(e)}")
+        return None
 
     
 
@@ -160,6 +160,5 @@ if __name__ == "__main__":
 
     app.run(host="0.0.0.0", port=8000)
     
-
 
 
