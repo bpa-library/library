@@ -19,6 +19,10 @@ load_dotenv()  # Load .env file for local development
 
 app = Flask(__name__)
 
+@app.route('/health')
+def health():
+    return jsonify({"status": "healthy", "db": "ok" if get_db() else "down"})
+    
 @app.route('/debug')
 def debug():
     return jsonify({
@@ -156,5 +160,6 @@ if __name__ == "__main__":
 
     app.run(host="0.0.0.0", port=8000)
     
+
 
 
