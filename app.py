@@ -1,4 +1,4 @@
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request 
 import mysql.connector
 import os
 #import boto3
@@ -25,12 +25,20 @@ app = Flask(__name__)
 def health():
     return jsonify({"status": "healthy", "db": "ok" if get_db() else "down"})
 
+    
 @app.route('/debug')
 def debug():
+    X_AUTH_SECRET = os.getenv('X_AUTH_SECRET')
+    if not X_AUTH_SECRET:
+        raise ValueError("Missing X_AUTH_SECRET in .env file")
+    
+    if not request.headers.get('X-Auth') == os.getenv('X_AUTH_SECRET'):
+        return jsonify({"error": "Unauthorized"}), 401
     return jsonify({
         "db_status": "Connected" if get_db() else "Failed",
         "env_vars": {k:v for k,v in os.environ.items() if k.startswith('DB_')}
     })
+
 
 # @app.route('/books')
 # def get_books():
@@ -52,52 +60,6 @@ def get_db():
     except Exception as e:
         print(f"DB Error: {str(e)}")
         return None
-
-
-# def get_db():
-#     try:
-#         return mysql.connector.connect(
-#             host=b.DB_HOST,
-#             user=b.DB_USER,
-#             password=b.DB_PASSWORD,
-#             database=b.DB_NAME,
-#             port=int(b.DB_PORT)
-#         )
-#     except Exception as e:
-#         print(f"DB Error: {str(e)}")
-#         return None
-    
-
-# def get_db():
-#     try:
-#         db_user = os.getenv('DB_USER', 'root')
-#         db_pass = os.getenv('DB_PASSWORD', 'xpbwmzchXSacGsreDkLWIpecGCeVqymd')
-#         db_name = os.getenv('DB_NAME', 'railway')
-#         db_host = os.getenv('DB_HOST', 'shuttle.proxy.rlwy.net')
-#         db_port = int(os.getenv('DB_PORT', '46029'))
-#         # db_host = os.getenv('DB_HOST', 'mysql.railway.internal')
-#         # db_port = int(os.getenv('DB_PORT', '3306'))
-
-#         print(f"Attempting connection to: {db_user}@{db_host}:{db_port}/{db_name}")
-
-#         return mysql.connector.connect(
-#             host=db_host,
-#             user=db_user,
-#             password=db_pass,
-#             database=db_name,
-#             port=db_port
-#         )
-
-#     except ValueError as ve:
-#         print(f"Port conversion error: {str(ve)}")
-#         return None
-#     except mysql.connector.Error as err:
-#         print(f"MySQL Connection Error: {err}")
-#         return None
-#     except Exception as e:
-#         print(f"General connection error: {str(e)}")
-#         return None
-
     
 
 @app.route('/')
@@ -114,7 +76,11 @@ def home():
 
         cursor.execute("SELECT * FROM books LIMIT 10")
         books = cursor.fetchall()
-        return jsonify({"books": books})
+
+        response = jsonify({"books": books})
+        response.headers["Cache-Control"] = "public, max-age=3600"  # 1 hour cache
+        return response
+        # return jsonify({"books": books})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     finally:
