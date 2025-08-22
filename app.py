@@ -1,6 +1,10 @@
 from flask import Flask, jsonify, request 
 import mysql.connector
 import os
+
+import hashlib
+import jwt
+from datetime import datetime, timedelta
 #import boto3
 #import base as b  
 
@@ -60,7 +64,133 @@ def get_db():
     except Exception as e:
         print(f"DB Error: {str(e)}")
         return None
+
+
+@app.route('/api/login', methods=['POST'])
+def api_login():
+    try:
+        data = request.get_json()
+        email = data.get('email')
+        password = data.get('password')
+        
+        if not email or not password:
+            return jsonify({"success": False, "error": "Email and password required"}), 400
+        
+        hashed_password = hashlib.sha256(password.encode()).hexdigest()
+        
+        db = get_db()
+        cursor = db.cursor(dictionary=True)
+        cursor.execute("SELECT id, name, email, role FROM users WHERE email = %s AND password = %s", 
+                      (email, hashed_password))
+        user = cursor.fetchone()
+        cursor.close()
+        db.close()
+        
+        if user:
+            token = jwt.encode({
+                'user_id': user['id'],
+                'email': user['email'],
+                'role': user['role'],
+                'exp': datetime.utcnow() + timedelta(hours=24)
+            }, os.getenv('JWT_SECRET', 'fallback-secret'), algorithm='HS256')
+            
+            return jsonify({
+                "success": True,
+                "user": user,
+                "token": token
+            })
+        else:
+            return jsonify({"success": False, "error": "Invalid credentials"}), 401
+            
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/api/register', methods=['POST'])
+def api_register():
+    try:
+        data = request.get_json()
+        name = data.get('name')
+        email = data.get('email')
+        password = data.get('password')
+        membership_number = data.get('membership_number')
+        
+        # Validation
+        if not all([name, email, password]):
+            return jsonify({"success": False, "error": "Name, email, and password are required"}), 400
+        
+        # Email validation
+        import re
+        email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        if not re.match(email_pattern, email):
+            return jsonify({"success": False, "error": "Invalid email format"}), 400
+        
+        # Password length check
+        if len(password) < 6:
+            return jsonify({"success": False, "error": "Password must be at least 6 characters"}), 400
+        
+        # Hash password
+        hashed_password = hashlib.sha256(password.encode()).hexdigest()
+        
+        db = get_db()
+        if not db:
+            return jsonify({"success": False, "error": "Database connection failed"}), 500
+        
+        cursor = db.cursor()
+        
+        try:
+            # Check if email already exists
+            cursor.execute("SELECT id FROM users WHERE email = %s", (email,))
+            if cursor.fetchone():
+                return jsonify({"success": False, "error": "Email already exists"}), 409
+            
+            # Insert new user
+            cursor.execute("""
+                INSERT INTO users (name, email, password, membership_number, role)
+                VALUES (%s, %s, %s, %s, 'member')
+            """, (name, email, hashed_password, membership_number))
+            
+            db.commit()
+            user_id = cursor.lastrowid
+            
+            # Generate token for auto-login
+            token = jwt.encode({
+                'user_id': user_id,
+                'email': email,
+                'role': 'member',
+                'exp': datetime.utcnow() + timedelta(hours=24)
+            }, os.getenv('JWT_SECRET', 'fallback-secret'), algorithm='HS256')
+            
+            return jsonify({
+                "success": True,
+                "message": "Registration successful",
+                "user": {
+                    "id": user_id,
+                    "name": name,
+                    "email": email,
+                    "role": "member",
+                    "membership_number": membership_number
+                },
+                "token": token
+            })
+            
+        except mysql.connector.IntegrityError as e:
+            db.rollback()
+            if "Duplicate entry" in str(e):
+                return jsonify({"success": False, "error": "Email or membership number already exists"}), 409
+            return jsonify({"success": False, "error": "Database integrity error"}), 400
+            
+        except Exception as e:
+            db.rollback()
+            return jsonify({"success": False, "error": f"Registration failed: {str(e)}"}), 500
+            
+        finally:
+            cursor.close()
+            db.close()
+            
+    except Exception as e:
+        return jsonify({"success": False, "error": f"Server error: {str(e)}"}), 500
     
+
 
 @app.route('/')
 def home():
