@@ -1,171 +1,134 @@
-import streamlit as st
+from flask import Flask, jsonify, request 
 import mysql.connector
-import hashlib
-import re
-from datetime import datetime, timedelta
-import jwt
 import os
+#import boto3
+#import base as b  
 
-# Database connection function
-def get_db_connection():
+from dotenv import load_dotenv
+
+#from serverless_wsgi import handle_request
+
+load_dotenv()  # Load .env file for local development
+
+# def handler(event, context):
+#     return handle_request(app, event, context)
+
+
+# from sqlalchemy import create_engine
+# import psycopg2
+
+# engine = create_engine(b.postgresql_DATABASE_URL)
+
+app = Flask(__name__)
+
+@app.route('/health')
+def health():
+    return jsonify({"status": "healthy", "db": "ok" if get_db() else "down"})
+
+    
+@app.route('/debug')
+def debug():
+    X_AUTH_SECRET = os.getenv('X_AUTH_SECRET')
+    if not X_AUTH_SECRET:
+        raise ValueError("Missing X_AUTH_SECRET in .env file")
+    
+    if not request.headers.get('X-Auth') == os.getenv('X_AUTH_SECRET'):
+        return jsonify({"error": "Unauthorized"}), 401
+    return jsonify({
+        "db_status": "Connected" if get_db() else "Failed",
+        "env_vars": {k:v for k,v in os.environ.items() if k.startswith('DB_')}
+    })
+
+
+# @app.route('/books')
+# def get_books():
+#     conn = engine.connect()
+#     books = conn.execute("SELECT * FROM books LIMIT 10").fetchall()
+#     return jsonify([dict(book) for book in books])
+
+
+# Database - Railway MySQL connection
+def get_db():
     try:
-        conn = mysql.connector.connect(
-            host=st.secrets["DB_HOST"],
-            user=st.secrets["DB_USER"],
-            password=st.secrets["DB_PASSWORD"],
-            database=st.secrets["DB_NAME"],
-            port=st.secrets["DB_PORT"]
+        return mysql.connector.connect(
+            host=os.getenv('DB_HOST'),  # Get from environment
+            user=os.getenv('DB_USER'),
+            password=os.getenv('DB_PASSWORD'),
+            database=os.getenv('DB_NAME'),
+            port=int(os.getenv('DB_PORT'))  # Default to 3306 if not set
         )
-        return conn
     except Exception as e:
-        st.error(f"Database connection failed: {str(e)}")
-        return None
-
-# Password hashing
-def hash_password(password):
-    return hashlib.sha256(password.encode()).hexdigest()
-
-# JWT token generation
-def generate_token(user_id, email, role):
-    payload = {
-        'user_id': user_id,
-        'email': email,
-        'role': role,
-        'exp': datetime.utcnow() + timedelta(hours=24)
-    }
-    return jwt.encode(payload, st.secrets["JWT_SECRET"], algorithm='HS256')
-
-# Validate email format
-def is_valid_email(email):
-    pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
-    return re.match(pattern, email) is not None
-
-# Login function
-def login_user(email, password):
-    conn = get_db_connection()
-    if not conn:
+        print(f"DB Error: {str(e)}")
         return None
     
+
+@app.route('/')
+def home():
     try:
-        cursor = conn.cursor(dictionary=True)
-        hashed_password = hash_password(password)
+        db = get_db()
+        if db is None:
+            return jsonify({"error": "Database connection failed"}), 500
+            # return jsonify({"error": "DB connection failed", "env": dict(os.environ)}), 500
         
-        cursor.execute("""
-            SELECT id, name, email, role, membership_number 
-            FROM users 
-            WHERE email = %s AND password = %s
-        """, (email, hashed_password))
-        
-        user = cursor.fetchone()
-        cursor.close()
-        conn.close()
-        
-        if user:
-            token = generate_token(user['id'], user['email'], user['role'])
-            return {**user, 'token': token}
-        return None
-        
-    except Exception as e:
-        st.error(f"Login error: {str(e)}")
-        return None
+        cursor = db.cursor(dictionary=True)
+        # cursor.execute("SELECT 1")  # Simple test query first
+        # cursor.fetchall()
 
-# Registration function
-def register_user(name, email, password, membership_number=None):
-    if not is_valid_email(email):
-        return "Invalid email format"
-    
-    conn = get_db_connection()
-    if not conn:
-        return "Database connection failed"
-    
-    try:
-        cursor = conn.cursor()
-        hashed_password = hash_password(password)
-        
-        cursor.execute("""
-            INSERT INTO users (name, email, password, membership_number)
-            VALUES (%s, %s, %s, %s)
-        """, (name, email, hashed_password, membership_number))
-        
-        conn.commit()
-        cursor.close()
-        conn.close()
-        return "Registration successful!"
-        
-    except mysql.connector.IntegrityError:
-        return "Email already exists"
-    except Exception as e:
-        return f"Registration error: {str(e)}"
+        cursor.execute("SELECT * FROM books LIMIT 10")
+        books = cursor.fetchall()
 
-# Streamlit UI
-def main():
-    st.set_page_config(
-        page_title="Library Login",
-        page_icon="📚",
-        layout="centered"
-    )
+        response = jsonify({"books": books})
+        response.headers["Cache-Control"] = "public, max-age=3600"  # 1 hour cache
+        return response
+        # return jsonify({"books": books})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if 'cursor' in locals(): cursor.close()
+        if 'db' in locals(): db.close()
+
+# Storage - Backblaze connection
+# def upload_to_b2(file_path):
+#     s3 = boto3.client(
+#         's3',
+#         endpoint_url=os.getenv('B2_ENDPOINT'),
+#         aws_access_key_id=os.getenv('B2_KEY_ID'),
+#         aws_secret_access_key=os.getenv('B2_APP_KEY')
+#     )
     
-    # Initialize session state
-    if 'user' not in st.session_state:
-        st.session_state.user = None
-    if 'page' not in st.session_state:
-        st.session_state.page = "login"
-    
-    # Header
-    st.title("📚 Library Portal Login")
-    st.markdown("---")
-    
-    # Login/Register tabs
-    tab1, tab2 = st.tabs(["Login", "Register"])
-    
-    with tab1:
-        st.header("Member Login")
-        
-        with st.form("login_form"):
-            email = st.text_input("Email", placeholder="your.email@example.com")
-            password = st.text_input("Password", type="password")
-            submit = st.form_submit_button("Login")
-            
-            if submit:
-                if not email or not password:
-                    st.error("Please fill in all fields")
-                else:
-                    user = login_user(email, password)
-                    if user:
-                        st.session_state.user = user
-                        st.success(f"Welcome back, {user['name']}!")
-                        st.rerun()
-                    else:
-                        st.error("Invalid email or password")
-    
-    with tab2:
-        st.header("New Member Registration")
-        
-        with st.form("register_form"):
-            name = st.text_input("Full Name", placeholder="John Doe")
-            email = st.text_input("Email", placeholder="your.email@example.com")
-            password = st.text_input("Password", type="password")
-            confirm_password = st.text_input("Confirm Password", type="password")
-            membership_number = st.text_input("Membership Number (optional)", placeholder="LIB12345")
-            submit = st.form_submit_button("Register")
-            
-            if submit:
-                if not all([name, email, password, confirm_password]):
-                    st.error("Please fill in all required fields")
-                elif password != confirm_password:
-                    st.error("Passwords do not match")
-                elif len(password) < 6:
-                    st.error("Password must be at least 6 characters")
-                else:
-                    result = register_user(name, email, password, membership_number)
-                    if "successful" in result:
-                        st.success(result)
-                    else:
-                        st.error(result)
-    
-    # Footer
-    st.markdown("---")
-    st.caption("© 2024 Library Management System | For assistance, contact support@library.com")
+#     try:
+#         file_name = os.path.basename(file_path)
+#         B2_BUCKET = os.getenv('B2_BUCKET')
+#         s3.upload_file(file_path, B2_BUCKET, file_name)
+#         print(f"Successfully uploaded {file_name} to {B2_BUCKET}")
+#         return True
+#     except Exception as e:
+#         print(f"Upload failed: {str(e)}")
+#         return False
 
 if __name__ == "__main__":
-    main()
+
+    print("Testing database connection...")
+    
+    test_db = get_db()
+    if test_db:
+        print("✅ Database connection successful!")
+        test_db.close()
+    else:
+        print("❌ Database connection failed - check credentials")
+
+    # # Test upload
+    # file_path = r"E:\Books-Audible\The Girl in Room 105 (Hindi)\Chapter 05.mp3"
+    
+    # # Verify file exists first
+    # if not os.path.exists(file_path):
+    #     print(f"Error: File not found at {file_path}")
+    # else:
+    #     if upload_to_b2(file_path):
+    #         print("Starting Flask server...")
+    #         app.run(host="0.0.0.0", port=8000)
+
+    app.run(host="0.0.0.0", port=8000)
+    
+
+
