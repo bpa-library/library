@@ -4,16 +4,26 @@ from datetime import datetime, timedelta
 
 API_URL = "https://library-11.vercel.app"  # Your Flask API
 
+
 def login_user(email, password):
     try:
         response = requests.post(f"{API_URL}/api/login", json={
             "email": email,
             "password": password
         })
-        return response.json() if response.status_code == 200 else None
+        
+        if response.status_code == 200:
+            return response.json()
+        else:
+            # Return a proper error structure
+            try:
+                error_data = response.json()
+                return {"success": False, "error": error_data.get('error', 'Login failed')}
+            except:
+                return {"success": False, "error": f"Login failed with status {response.status_code}"}
+                
     except Exception as e:
-        st.error(f"Login failed: {str(e)}")
-        return None
+        return {"success": False, "error": f"Connection error: {str(e)}"}
 
 def register_user(name, email, password, membership_number=None):
     try:
@@ -88,14 +98,18 @@ def show_login_register():
                     st.error("Please fill in all fields")
                 else:
                     result = login_user(email, password)
-                    if result and result.get('success'):
-                        st.session_state.user = result['user']
-                        st.session_state.token = result['token']
-                        st.success(f"Welcome back, {result['user']['name']}!")
-                        st.rerun()
+                    # Check if result exists and has the expected structure
+                    if result and isinstance(result, dict):
+                        if result.get('success'):
+                            st.session_state.user = result['user']
+                            st.session_state.token = result['token']
+                            st.success(f"Welcome back, {result['user']['name']}!")
+                            st.rerun()
+                        else:
+                            st.error(result.get('error', 'Login failed'))
                     else:
-                        st.error(result.get('error', 'Login failed'))
-    
+                        st.error("Unexpected response from server")
+
     with tab2:
         st.header("New Member Registration")
         with st.form("register_form"):
