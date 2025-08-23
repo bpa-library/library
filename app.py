@@ -448,7 +448,7 @@ def generate_signed_url(bucket_name, file_path, expiration=3600):
         return None
 
 
-import requests
+# import requests
 
 if __name__ == "__main__":
     print("Testing database connection...")
