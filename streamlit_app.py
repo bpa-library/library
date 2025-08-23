@@ -7,7 +7,7 @@ API_URL = "https://library-11.vercel.app"  # Your Flask API
 
 def login_user(email, password):
     try:
-        response = requests.post(f"{API_URL}/api/login", json={
+        response = requests.post(f"{API_URL}/", json={
             "email": email,
             "password": password
         })
@@ -37,13 +37,14 @@ def register_user(name, email, password, membership_number=None):
     except Exception as e:
         return {"error": f"Connection failed: {str(e)}"}
 
+
 def dashboard():
     st.title("📚 Audio Book Library")
     st.subheader("Browse Available Books")
 
     # Fetch data from Flask API
     try:
-        response = requests.get(f"{API_URL}/")
+        response = requests.get(f"{API_URL}/books")
         if response.status_code == 200:
             books = response.json().get("books", [])
             for book in books:
