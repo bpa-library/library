@@ -227,12 +227,44 @@ def get_books():
         # cursor.execute("SELECT 1")  # Simple test query first
         # cursor.fetchall()
 
-        cursor.execute("SELECT * FROM books LIMIT 10")
-        books = cursor.fetchall()
+        # cursor.execute("SELECT * FROM books LIMIT 10")
+        cursor.execute("""
+                    SELECT 
+                        b.id as book_id,
+                        b.title as book_title,
+                        c.id as chapter_id,
+                        c.chapter_number,
+                        c.title as chapter_title
+                    FROM books b
+                    INNER JOIN chapters c ON b.id = c.book_id 
+                    ORDER BY b.title, c.chapter_number
+                    LIMIT 10
+                """)
+        results = cursor.fetchall()
 
-        response = jsonify({"books": books})
-        response.headers["Cache-Control"] = "public, max-age=3600"  # 1 hour cache
-        return response
+        # Format the data nicely
+        books = {}
+        for row in results:
+            book_id = row['book_id']
+            if book_id not in books:
+                books[book_id] = {
+                    'id': book_id,
+                    'title': row['book_title'],
+                    'chapters': []
+                }
+            
+            if row['chapter_id']:  # Only add if chapter exists
+                books[book_id]['chapters'].append({
+                    'title': row['chapter_title'],
+                    'id': row['chapter_id'],
+                    'chapter_number': row['chapter_number']
+                })
+        
+        return jsonify({"books": list(books.values())})
+
+        # response = jsonify({"books": books})
+        # response.headers["Cache-Control"] = "public, max-age=3600"  # 1 hour cache
+        # return response
         # return jsonify({"books": books})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
