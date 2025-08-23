@@ -25,6 +25,20 @@ load_dotenv()  # Load .env file for local development
 
 app = Flask(__name__)
 
+# Database - Railway MySQL connection
+def get_db():
+    try:
+        return mysql.connector.connect(
+            host=os.getenv('DB_HOST'),  # Get from environment
+            user=os.getenv('DB_USER'),
+            password=os.getenv('DB_PASSWORD'),
+            database=os.getenv('DB_NAME'),
+            port=int(os.getenv('DB_PORT'))  # Default to 3306 if not set
+        )
+    except Exception as e:
+        print(f"DB Error: {str(e)}")
+        return None
+    
 @app.route('/health')
 def health():
     return jsonify({"status": "healthy", "db": "ok" if get_db() else "down"})
@@ -50,23 +64,32 @@ def debug():
 #     books = conn.execute("SELECT * FROM books LIMIT 10").fetchall()
 #     return jsonify([dict(book) for book in books])
 
+@app.route('/', methods=['GET'])
+def home():
+    """Root endpoint that returns basic info or redirects"""
+    return jsonify({
+        "message": "Library API",
+        "endpoints": {
+            "login": "POST /",
+            "register": "POST /api/register", 
+            "books": "GET /books",
+            "health": "GET /health"
+        }
+    })
 
-# Database - Railway MySQL connection
-def get_db():
-    try:
-        return mysql.connector.connect(
-            host=os.getenv('DB_HOST'),  # Get from environment
-            user=os.getenv('DB_USER'),
-            password=os.getenv('DB_PASSWORD'),
-            database=os.getenv('DB_NAME'),
-            port=int(os.getenv('DB_PORT'))  # Default to 3306 if not set
-        )
-    except Exception as e:
-        print(f"DB Error: {str(e)}")
-        return None
+# @app.route('/', methods=['POST'])
+# def api_login():
+#     # Your existing login code
+#     pass
+
+# @app.route('/books', methods=['GET'])
+# def get_books():
+#     # Your existing books code  
+#     pass
 
 
-@app.route('/api/login', methods=['POST'])
+@app.route('/', methods=['POST'])
+# @app.route('/api/login', methods=['POST'])
 def api_login():
     try:
         data = request.get_json()
@@ -192,8 +215,8 @@ def api_register():
     
 
 
-@app.route('/')
-def home():
+@app.route('/books', methods=['GET'])
+def get_books():
     try:
         db = get_db()
         if db is None:
@@ -226,15 +249,15 @@ def home():
 #         aws_secret_access_key=os.getenv('B2_APP_KEY')
 #     )
     
-#     try:
-#         file_name = os.path.basename(file_path)
-#         B2_BUCKET = os.getenv('B2_BUCKET')
-#         s3.upload_file(file_path, B2_BUCKET, file_name)
-#         print(f"Successfully uploaded {file_name} to {B2_BUCKET}")
-#         return True
-#     except Exception as e:
-#         print(f"Upload failed: {str(e)}")
-#         return False
+    # try:
+    #     file_name = os.path.basename(file_path)
+    #     B2_BUCKET = os.getenv('B2_BUCKET')
+    #     s3.upload_file(file_path, B2_BUCKET, file_name)
+    #     print(f"Successfully uploaded {file_name} to {B2_BUCKET}")
+    #     return True
+    # except Exception as e:
+    #     print(f"Upload failed: {str(e)}")
+    #     return False
 
 if __name__ == "__main__":
 
