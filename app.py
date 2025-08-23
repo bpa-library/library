@@ -460,35 +460,35 @@ if __name__ == "__main__":
     else:
         print("❌ Database connection failed - check credentials")
 
-    print("\nTesting Backblaze B2 connection...")
-    test_b2_simple()
+    # print("\nTesting Backblaze B2 connection...")
+    # test_b2_simple()
 
-    # Test signed URL generation
-    print("\nTesting signed URL generation...")
+    # # Test signed URL generation
+    # print("\nTesting signed URL generation...")
     
-    signed_url = generate_signed_url(
-        os.getenv('B2_BUCKET'),
-        "BHARAT NA 75 FILM UDHYOGNA SITARO/Chapter 01.mp3"
-    )
+    # signed_url = generate_signed_url(
+    #     os.getenv('B2_BUCKET'),
+    #     "BHARAT NA 75 FILM UDHYOGNA SITARO/Chapter 01.mp3"
+    # )
     
-    if signed_url:
-        print(f"Signed URL: {signed_url}")
+    # if signed_url:
+    #     print(f"Signed URL: {signed_url}")
         
-        # Test if the signed URL works
-        # Test if the signed URL works
-        try:
-            # Use GET instead of HEAD for testing
-            response = requests.get(signed_url, timeout=10, stream=True)
-            if response.status_code == 200:
-                print("✅ Signed URL works!")
-                print(f"Content-Type: {response.headers.get('content-type')}")
-                print(f"Content-Length: {response.headers.get('content-length')} bytes")
-            else:
-                print(f"❌ Signed URL failed with status: {response.status_code}")
-                print(f"Response headers: {dict(response.headers)}")
-        except Exception as e:
-            print(f"❌ Signed URL test failed: {str(e)}")
-    else:
-        print("❌ Failed to generate signed URL")
+    #     # Test if the signed URL works
+    #     # Test if the signed URL works
+    #     try:
+    #         # Use GET instead of HEAD for testing
+    #         response = requests.get(signed_url, timeout=10, stream=True)
+    #         if response.status_code == 200:
+    #             print("✅ Signed URL works!")
+    #             print(f"Content-Type: {response.headers.get('content-type')}")
+    #             print(f"Content-Length: {response.headers.get('content-length')} bytes")
+    #         else:
+    #             print(f"❌ Signed URL failed with status: {response.status_code}")
+    #             print(f"Response headers: {dict(response.headers)}")
+    #     except Exception as e:
+    #         print(f"❌ Signed URL test failed: {str(e)}")
+    # else:
+    #     print("❌ Failed to generate signed URL")
 
     app.run(host="0.0.0.0", port=8000)
