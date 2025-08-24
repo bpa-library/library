@@ -6,6 +6,7 @@ import hashlib
 import jwt
 from datetime import datetime, timedelta
 import boto3
+from flask_cors import CORS
 #import base as b  
 
 from dotenv import load_dotenv
@@ -24,32 +25,74 @@ load_dotenv()  # Load .env file for local development
 # engine = create_engine(b.postgresql_DATABASE_URL)
 
 app = Flask(__name__)
+# CORS(app) 
 
-
-def generate_signed_url(bucket_name, file_path, expiration=3600):
-    """Generate a signed URL for private Backblaze B2 files"""
-    s3 = boto3.client(
-        's3',
-        endpoint_url=os.getenv('B2_ENDPOINT'),
-        aws_access_key_id=os.getenv('B2_KEY_ID'),
-        aws_secret_access_key=os.getenv('B2_APP_KEY')
-    )
-    
+@app.route('/api/stream-audio/<int:book_id>/<chapter_title>')
+def stream_audio(book_id, chapter_title):
     try:
-        url = s3.generate_presigned_url(
-            'get_object',
-            Params={'Bucket': bucket_name, 'Key': file_path},
-            ExpiresIn=expiration
-        )
-        return url
+        # Get the signed URL first
+        db = get_db()
+        cursor = db.cursor(dictionary=True)
+        cursor.execute("SELECT title FROM books WHERE id = %s", (book_id,))
+        book = cursor.fetchone()
+        cursor.close()
+        db.close()
+        
+        if not book:
+            return jsonify({"error": "Book not found"}), 404
+        
+        file_path = f"{book['title']}/{chapter_title}"
+        signed_url = generate_signed_url(os.getenv('B2_BUCKET'), file_path)
+        
+        if not signed_url:
+            return jsonify({"error": "Failed to generate URL"}), 500
+        
+        # Stream the audio from Backblaze through Flask
+        response = requests.get(signed_url, stream=True)
+        
+        if response.status_code == 200:
+            return response(
+                response.iter_content(chunk_size=8192),
+                content_type=response.headers.get('content-type', 'audio/mpeg'),
+                headers={
+                    'Cache-Control': 'no-cache',
+                    'Access-Control-Allow-Origin': '*'
+                }
+            )
+        else:
+            return jsonify({"error": f"Audio not found: {response.status_code}"}), 404
+            
     except Exception as e:
-        print(f"Error generating signed URL: {str(e)}")
-        return None
+        return jsonify({"error": str(e)}), 500
+    
+
+# def generate_signed_url(bucket_name, file_path, expiration=3600):
+#     """Generate a signed URL for private Backblaze B2 files"""
+#     s3 = boto3.client(
+#         's3',
+#         endpoint_url=os.getenv('B2_ENDPOINT'),
+#         aws_access_key_id=os.getenv('B2_KEY_ID'),
+#         aws_secret_access_key=os.getenv('B2_APP_KEY')
+#     )
+    
+#     try:
+#         url = s3.generate_presigned_url(
+#             'get_object',
+#             Params={'Bucket': bucket_name, 'Key': file_path},
+#             ExpiresIn=expiration
+#         )
+#         return url
+#     except Exception as e:
+#         print(f"Error generating signed URL: {str(e)}")
+#         return None
 
 # Add this endpoint to your Flask app
 @app.route('/api/audio-url/<int:book_id>/<chapter_title>')
 def get_audio_url(book_id, chapter_title):
     try:
+        # The chapter_title is now automatically URL decoded by Flask
+        # No need to urllib.parse.unquote() it
+    
         # Get book title from database
         db = get_db()
         cursor = db.cursor(dictionary=True)
@@ -76,13 +119,6 @@ def get_audio_url(book_id, chapter_title):
             
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
-
-
-
-
-
-
 
 
 
@@ -118,12 +154,18 @@ def debug():
         "env_vars": {k:v for k,v in os.environ.items() if k.startswith('DB_')}
     })
 
-
-# @app.route('/books')
-# def get_books():
-#     conn = engine.connect()
-#     books = conn.execute("SELECT * FROM books LIMIT 10").fetchall()
-#     return jsonify([dict(book) for book in books])
+def backblaze_store():
+    try:
+        return boto3.client(
+            's3',
+            endpoint_url=os.getenv('B2_ENDPOINT'),
+            aws_access_key_id=os.getenv('B2_KEY_ID'),
+            aws_secret_access_key=os.getenv('B2_APP_KEY'),
+            region_name='us-east-005'
+        )
+    except Exception as e:
+        print(f"❌ Backblaze B2 connection failed: {str(e)}")
+        return False
 
 @app.route('/', methods=['GET'])
 def home():
@@ -138,15 +180,6 @@ def home():
         }
     })
 
-# @app.route('/', methods=['POST'])
-# def api_login():
-#     # Your existing login code
-#     pass
-
-# @app.route('/books', methods=['GET'])
-# def get_books():
-#     # Your existing books code  
-#     pass
 
 
 @app.route('/', methods=['POST'])
@@ -285,10 +318,6 @@ def get_books():
             # return jsonify({"error": "DB connection failed", "env": dict(os.environ)}), 500
         
         cursor = db.cursor(dictionary=True)
-        # cursor.execute("SELECT 1")  # Simple test query first
-        # cursor.fetchall()
-
-        # cursor.execute("SELECT * FROM books LIMIT 10")
         cursor.execute("""
                     SELECT 
                         b.id as book_id,
@@ -303,7 +332,6 @@ def get_books():
                 """)
         results = cursor.fetchall()
 
-        # Format the data nicely
         books = {}
         for row in results:
             book_id = row['book_id']
@@ -325,8 +353,6 @@ def get_books():
 
         # response = jsonify({"books": books})
         # response.headers["Cache-Control"] = "public, max-age=3600"  # 1 hour cache
-        # return response
-        # return jsonify({"books": books})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     finally:
@@ -366,25 +392,30 @@ def get_books():
 def test_b2_connection():
     """Test if Backblaze B2 credentials work"""
     try:
-        s3 = boto3.client(
-            's3',
-            endpoint_url=os.getenv('B2_ENDPOINT'),
-            aws_access_key_id=os.getenv('B2_KEY_ID'),
-            aws_secret_access_key=os.getenv('B2_APP_KEY')
-        )
-        
-        # Test listing buckets
-        response = s3.list_buckets()
+        s3 = backblaze_store()
         print("✅ Connected to Backblaze B2 successfully!")
-        print("Available buckets:")
-        for bucket in response['Buckets']:
-            print(f"  - {bucket['Name']}")
-            
-        # Test bucket access
+        
+        # Test bucket access directly (skip list_buckets)
         try:
             s3.head_bucket(Bucket=os.getenv('B2_BUCKET'))
             print(f"✅ Access to bucket '{os.getenv('B2_BUCKET')}' confirmed!")
-            return True
+            
+            # Test if we can list objects in the bucket
+            try:
+                response = s3.list_objects_v2(
+                    Bucket=os.getenv('B2_BUCKET'),
+                    MaxKeys=5  # Limit to first 5 objects
+                )
+                print(f"✅ Can list objects in bucket")
+                if 'Contents' in response:
+                    print("Sample files in bucket:")
+                    for obj in response['Contents'][:3]:  # Show first 3 files
+                        print(f"  - {obj['Key']} ({obj['Size']} bytes)")
+                return True
+            except Exception as list_error:
+                print(f"❌ Cannot list objects: {str(list_error)}")
+                return False
+                
         except Exception as e:
             print(f"❌ Cannot access bucket: {str(e)}")
             return False
@@ -393,45 +424,38 @@ def test_b2_connection():
         print(f"❌ Backblaze B2 connection failed: {str(e)}")
         return False
 
-def test_b2_simple():
-    """Simple test to check basic connectivity"""
-    try:
-        s3 = boto3.client(
-            's3',
-            endpoint_url=os.getenv('B2_ENDPOINT'),
-            aws_access_key_id=os.getenv('B2_KEY_ID'),
-            aws_secret_access_key=os.getenv('B2_APP_KEY'),
-            region_name='us-east-005'
-        )
+# def test_b2_simple():
+#     """Simple test to check basic connectivity"""
+#     try:
+#         s3 = boto3.client(
+#             's3',
+#             endpoint_url=os.getenv('B2_ENDPOINT'),
+#             aws_access_key_id=os.getenv('B2_KEY_ID'),
+#             aws_secret_access_key=os.getenv('B2_APP_KEY'),
+#             region_name='us-east-005'
+#         )
         
-        # Try a simple operation that doesn't require list permissions
-        try:
-            # Check if we can access a specific file
-            s3.head_object(
-                Bucket=os.getenv('B2_BUCKET'),
-                Key="BHARAT NA 75 FILM UDHYOGNA SITARO/Chapter 01.mp3"
-            )
-            print("✅ Can access specific file!")
-            return True
-        except Exception as e:
-            print(f"File access error: {str(e)}")
-            return False
+#         # Try a simple operation that doesn't require list permissions
+#         try:
+#             # Check if we can access a specific file
+#             s3.head_object(
+#                 Bucket=os.getenv('B2_BUCKET'),
+#                 Key="BHARAT NA 75 FILM UDHYOGNA SITARO/Chapter 01.mp3"
+#             )
+#             print("✅ Can access specific file!")
+#             return True
+#         except Exception as e:
+#             print(f"File access error: {str(e)}")
+#             return False
             
-    except Exception as e:
-        print(f"B2 connection failed: {str(e)}")
-        return False
+    # except Exception as e:
+    #     print(f"B2 connection failed: {str(e)}")
+    #     return False
 
 def generate_signed_url(bucket_name, file_path, expiration=3600):
     """Generate a signed URL for private Backblaze B2 files"""
     try:
-        s3 = boto3.client(
-            's3',
-            endpoint_url=os.getenv('B2_ENDPOINT'),
-            aws_access_key_id=os.getenv('B2_KEY_ID'),
-            aws_secret_access_key=os.getenv('B2_APP_KEY'),
-            region_name='us-east-005',  # Add region
-            config=boto3.session.Config(signature_version='s3v4')  # Use v4 signing
-        )
+        s3 = backblaze_store()
         
         url = s3.generate_presigned_url(
             'get_object',
@@ -448,18 +472,19 @@ def generate_signed_url(bucket_name, file_path, expiration=3600):
         return None
 
 
-# import requests
+import requests
 
 if __name__ == "__main__":
     print("Testing database connection...")
     
     test_db = get_db()
     if test_db:
-        print("✅ Database connection successful!")
+        print("✅ Connected to Railway Database successful!")
         test_db.close()
     else:
-        print("❌ Database connection failed - check credentials")
+        print("❌ Railway Database connection failed - check credentials")
 
+    test_b2_connection()
     # print("\nTesting Backblaze B2 connection...")
     # test_b2_simple()
 
@@ -473,9 +498,7 @@ if __name__ == "__main__":
     
     # if signed_url:
     #     print(f"Signed URL: {signed_url}")
-        
-    #     # Test if the signed URL works
-    #     # Test if the signed URL works
+
     #     try:
     #         # Use GET instead of HEAD for testing
     #         response = requests.get(signed_url, timeout=10, stream=True)
