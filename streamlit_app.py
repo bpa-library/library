@@ -44,12 +44,17 @@ def register_user(name, email, password, membership_number=None):
 def get_signed_audio_url(book_id, chapter_title):
     """Get signed URL from Flask API"""
     try:
-        # Use the original audio-url endpoint, NOT the streaming one
-        encoded_title = urllib.parse.quote(chapter_title)
+
         response = requests.get(
-            f"{API_URL}/api/audio-url/{book_id}/{encoded_title}",
+            f"{API_URL}/api/audio-url/{book_id}/{chapter_title}",  # No encoding
             timeout=10
         )
+        # Use the original audio-url endpoint, NOT the streaming one
+        # encoded_title = urllib.parse.quote(chapter_title)
+        # response = requests.get(
+        #     f"{API_URL}/api/audio-url/{book_id}/{encoded_title}",
+        #     timeout=10
+        # )
         
         if response.status_code == 200:
             data = response.json()
