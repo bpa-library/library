@@ -104,8 +104,11 @@ def get_audio_url(book_id, chapter_title):
         if not book:
             return jsonify({"error": "Book not found"}), 404
         
+        import urllib.parse
+        decoded_title = urllib.parse.unquote(chapter_title)
+        file_path = f"{book['title']}/{decoded_title}"
         # Generate signed URL
-        file_path = f"{book['title']}/{chapter_title}"
+        #file_path = f"{book['title']}/{chapter_title}"
         signed_url = generate_signed_url(
             os.getenv('B2_BUCKET'),
             file_path,
