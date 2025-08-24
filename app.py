@@ -25,7 +25,7 @@ load_dotenv()  # Load .env file for local development
 # engine = create_engine(b.postgresql_DATABASE_URL)
 
 app = Flask(__name__)
-# CORS(app) 
+CORS(app) 
 
 @app.route('/api/stream-audio/<int:book_id>/<chapter_title>')
 def stream_audio(book_id, chapter_title):
