@@ -3,7 +3,7 @@ import requests
 import urllib.parse
 from datetime import datetime, timedelta  # Uncomment and fix this import
 import time
-#import jwt
+import jwt
 import os
 
 API_URL = "https://library-11.vercel.app"  # Your Flask API
