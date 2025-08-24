@@ -27,43 +27,43 @@ load_dotenv()  # Load .env file for local development
 app = Flask(__name__)
 CORS(app) 
 
-@app.route('/api/stream-audio/<int:book_id>/<chapter_title>')
-def stream_audio(book_id, chapter_title):
-    try:
-        # Get the signed URL first
-        db = get_db()
-        cursor = db.cursor(dictionary=True)
-        cursor.execute("SELECT title FROM books WHERE id = %s", (book_id,))
-        book = cursor.fetchone()
-        cursor.close()
-        db.close()
+# @app.route('/api/stream-audio/<int:book_id>/<chapter_title>')
+# def stream_audio(book_id, chapter_title):
+#     try:
+#         # Get the signed URL first
+#         db = get_db()
+#         cursor = db.cursor(dictionary=True)
+#         cursor.execute("SELECT title FROM books WHERE id = %s", (book_id,))
+#         book = cursor.fetchone()
+#         cursor.close()
+#         db.close()
         
-        if not book:
-            return jsonify({"error": "Book not found"}), 404
+#         if not book:
+#             return jsonify({"error": "Book not found"}), 404
         
-        file_path = f"{book['title']}/{chapter_title}"
-        signed_url = generate_signed_url(os.getenv('B2_BUCKET'), file_path)
+#         file_path = f"{book['title']}/{chapter_title}"
+#         signed_url = generate_signed_url(os.getenv('B2_BUCKET'), file_path)
         
-        if not signed_url:
-            return jsonify({"error": "Failed to generate URL"}), 500
+#         if not signed_url:
+#             return jsonify({"error": "Failed to generate URL"}), 500
         
-        # Stream the audio from Backblaze through Flask
-        response = requests.get(signed_url, stream=True)
+#         # Stream the audio from Backblaze through Flask
+#         response = requests.get(signed_url, stream=True)
         
-        if response.status_code == 200:
-            return response(
-                response.iter_content(chunk_size=8192),
-                content_type=response.headers.get('content-type', 'audio/mpeg'),
-                headers={
-                    'Cache-Control': 'no-cache',
-                    'Access-Control-Allow-Origin': '*'
-                }
-            )
-        else:
-            return jsonify({"error": f"Audio not found: {response.status_code}"}), 404
+#         if response.status_code == 200:
+#             return response(
+#                 response.iter_content(chunk_size=8192),
+#                 content_type=response.headers.get('content-type', 'audio/mpeg'),
+#                 headers={
+#                     'Cache-Control': 'no-cache',
+#                     'Access-Control-Allow-Origin': '*'
+#                 }
+#             )
+#         else:
+#             return jsonify({"error": f"Audio not found: {response.status_code}"}), 404
             
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+#     except Exception as e:
+#         return jsonify({"error": str(e)}), 500
     
 
 # def generate_signed_url(bucket_name, file_path, expiration=3600):
