@@ -1,20 +1,27 @@
 {
-  "version": 2,
-  "builds": [
-    {
-      "src": "backend/app.py",
-      "use": "@vercel/python"
-    }
-  ],
-  "routes": [
-    {
-      "src": "/(.*)",
-      "dest": "backend/app.py"
-    }
-  ],
-  "functions": {
-    "backend/app.py": {
-      "maxDuration": 30
-    }
+    "version": 2,
+    "builds": [
+      {
+        "src": "backend/app.py",
+        "use": "@vercel/python"
+      }
+    ],
+    "routes": [
+      {
+        "src": "/(.*)",
+        "dest": "backend/app.py"
+      }
+    ],
+    "functions": {
+      "backend/app.py": {
+        "maxDuration": 30,
+        "runtime": "@vercel/python@3.9"
+      }
+    },
+    "rewrites": [
+      {
+        "source": "/(.*)",
+        "destination": "/backend/app.py"
+      }
+    ]
   }
-}
