@@ -1,24 +1,17 @@
 # api/index.py
-from flask import Flask, jsonify
+import json
 
-app = Flask(__name__)
-
-@app.route('/')
-def home():
-    return jsonify({"message": "API is working!"})
-
-@app.route('/health')
-def health():
-    return jsonify({"status": "healthy"})
-
-# Vercel handler
-def handler(request):
-    with app.app_context():
-        # Simple handler that returns JSON
-        path = request.path
-        if path == '/':
-            return {'statusCode': 200, 'body': '{"message": "API is working!"}'}
-        elif path == '/health':
-            return {'statusCode': 200, 'body': '{"status": "healthy"}'}
-        else:
-            return {'statusCode': 404, 'body': '{"error": "Not found"}'}
+def handler(request, context):
+    """Minimal working handler for Vercel"""
+    return {
+        'statusCode': 200,
+        'headers': {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*'
+        },
+        'body': json.dumps({
+            "success": True,
+            "message": "API deployed successfully!",
+            "endpoint": request.path
+        })
+    }
