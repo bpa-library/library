@@ -1,15 +1,15 @@
 {
-    "version": 2,
-    "builds": [
-      {
-        "src": "wsgi_handler.py",
-        "use": "@vercel/python"
-      }
-    ],
-    "routes": [
-      {
-        "src": "/(.*)",
-        "dest": "wsgi_handler.py"
-      }
-    ]
-  }
+  "version": 2,
+  "builds": [
+    {
+      "src": "api/index.py",
+      "use": "@vercel/python"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "api/index.py"
+    }
+  ]
+}
