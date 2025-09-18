@@ -57,10 +57,10 @@ def MySQL_db():
 
 # PostgreSQL - Free Forever - https://neon.com/ - (Neon.tech)
 # Free Limit 3GB storage, Beyond Free $0.10/GB
-from sqlalchemy import create_engine, text
-import psycopg2
-from psycopg2.extras import execute_values
-from urllib.parse import urlparse
+# from sqlalchemy import create_engine, text
+# import psycopg2
+# from psycopg2.extras import execute_values
+# from urllib.parse import urlparse
             
 
 def postgreSQL_db_old():

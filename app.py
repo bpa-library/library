@@ -2,7 +2,7 @@
 # app.py
 ########
 from flask import Flask, jsonify, request 
-import mysql.connector
+# import mysql.connector
 import os
 
 import hashlib
