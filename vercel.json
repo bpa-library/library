@@ -11,16 +11,5 @@
       "src": "/(.*)",
       "dest": "app.py"
     }
-  ],
-  "functions": {
-    "app.py": {
-      "maxDuration": 30,
-      "runtime": "@vercel/python@3.9"
-    }
-  },
-  "github": {
-    "enabled": true,
-    "autoAlias": true,
-    "autoJobCancelation": true
-  }
+  ]
 }
