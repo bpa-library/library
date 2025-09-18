@@ -1,0 +1,26 @@
+streamlit_app/
+├── __init__.py
+├── main.py                 # Main entry point
+├── auth.py                 # Authentication functions
+├── admin/                  # Admin features
+│   ├── __init__.py
+│   ├── dashboard.py
+│   ├── books.py
+│   ├── users.py
+│   └── analytics.py
+├── user/                   # User features
+│   ├── __init__.py
+│   ├── dashboard.py
+│   ├── library.py
+│   ├── browse.py
+│   └── profile.py
+├── utils/                  # Utilities
+│   ├── __init__.py
+│   ├── database.py
+│   ├── audio.py
+│   └── helpers.py
+└── components/             # Reusable components
+    ├── __init__.py
+    ├── book_cards.py
+    ├── navigation.py
+    └── audio_player.py
