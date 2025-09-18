@@ -1,0 +1,13 @@
+.vercelignore
+# Ignore frontend and development files
+streamlit_app/
+*.log
+.env
+.env.local
+.env.production
+.git/
+.gitignore
+README.md
+__pycache__/
+*.pyc
+*.pyo
