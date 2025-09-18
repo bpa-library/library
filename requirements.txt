@@ -8,7 +8,7 @@ flask-cors==4.0.0
 
 # Database - choose ONLY ONE based on your needs
 #IF MySQL
-mysql-connector-python==8.0.33     # If using MySQL
+#mysql-connector-python==8.0.33     # If using MySQL
 #ELSE
 psycopg2-binary==2.9.10             # If using PostgreSQL
 
@@ -16,5 +16,6 @@ psycopg2-binary==2.9.10             # If using PostgreSQL
 boto3==1.26.142
 
 # Streamlit - REMOVE THIS FOR VERCEL DEPLOYMENT
-# streamlit==1.28.1
+streamlit==1.28.1
+
 
