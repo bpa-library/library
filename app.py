@@ -1068,8 +1068,8 @@ def get_chapter_by_id(chapter_id):
 
 import requests
 
-if __name__ == "__main__":
-    print("Testing database connection...")
+# if __name__ == "__main__":
+#     print("Testing database connection...")
     
     # test_db = MySQL_db()
     # if test_db:
@@ -1110,4 +1110,15 @@ if __name__ == "__main__":
     # else:
     #     print("❌ Failed to generate signed URL")
 
-    app.run(host="0.0.0.0", port=8000)
+    # app.run(host="0.0.0.0", port=8000)
+
+
+if __name__ == "__main__":
+    print("Testing database connection...")
+    app.run(debug=True, host="0.0.0.0", port=8000)
+else:
+    # Vercel serverless function handler
+    def handler(event, context):
+        with app.app_context():
+            # This will be handled by Vercel's Python runtime
+            return app(event, context)
