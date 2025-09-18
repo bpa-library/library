@@ -1,41 +1,24 @@
 # api/index.py
-from http import HTTPStatus
-import json
+from flask import Flask, jsonify
 
-def handler(request, context):
-    """Vercel serverless function handler"""
-    try:
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return jsonify({"message": "API is working!"})
+
+@app.route('/health')
+def health():
+    return jsonify({"status": "healthy"})
+
+# Vercel handler
+def handler(request):
+    with app.app_context():
+        # Simple handler that returns JSON
         path = request.path
-        method = request.method
-        
-        if path == '/' and method == 'GET':
-            return {
-                'statusCode': HTTPStatus.OK,
-                'headers': {'Content-Type': 'application/json'},
-                'body': json.dumps({
-                    "message": "Library API",
-                    "endpoints": {
-                        "health": "GET /health",
-                        "login": "POST /api/login",
-                        "register": "POST /api/register"
-                    }
-                })
-            }
-            
-        elif path == '/health' and method == 'GET':
-            return {
-                'statusCode': HTTPStatus.OK,
-                'body': json.dumps({"status": "healthy"})
-            }
-            
+        if path == '/':
+            return {'statusCode': 200, 'body': '{"message": "API is working!"}'}
+        elif path == '/health':
+            return {'statusCode': 200, 'body': '{"status": "healthy"}'}
         else:
-            return {
-                'statusCode': HTTPStatus.NOT_FOUND,
-                'body': json.dumps({"error": "Endpoint not found"})
-            }
-            
-    except Exception as e:
-        return {
-            'statusCode': HTTPStatus.INTERNAL_SERVER_ERROR,
-            'body': json.dumps({"error": str(e)})
-        }
+            return {'statusCode': 404, 'body': '{"error": "Not found"}'}
