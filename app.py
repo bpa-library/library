@@ -1066,7 +1066,7 @@ def get_chapter_by_id(chapter_id):
         return None
 ########
 
-import requests
+
 
 # if __name__ == "__main__":
 #     print("Testing database connection...")
@@ -1112,10 +1112,12 @@ import requests
 
     # app.run(host="0.0.0.0", port=8000)
 
+import requests
 
 if __name__ == "__main__":
     print("Testing database connection...")
-    app.run(debug=True, host="0.0.0.0", port=8000)
+    app.run(debug=True, port=8000)
+    # app.run(debug=True, host="0.0.0.0", port=8000)
 else:
     # Vercel serverless function handler
     def handler(event, context):
