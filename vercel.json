@@ -1,18 +1,26 @@
 {
   "version": 2,
-  "builds": [{
+  "builds": [
+    {
       "src": "app.py",
       "use": "@vercel/python"
-    }],
-  "routes": [{
+    }
+  ],
+  "routes": [
+    {
       "src": "/(.*)",
       "dest": "app.py"
-    }],
+    }
+  ],
   "functions": {
     "app.py": {
       "maxDuration": 30,
       "runtime": "@vercel/python@3.9"
     }
+  },
+  "github": {
+    "enabled": true,
+    "autoAlias": true,
+    "autoJobCancelation": true
   }
 }
-
