@@ -1,15 +1,20 @@
 {
-    "version": 2,
-    "builds": [
-      {
-        "src": "wsgi_handler.py",
-        "use": "@vercel/python"
-      }
-    ],
-    "routes": [
-      {
-        "src": "/(.*)",
-        "dest": "wsgi_handler.py"
-      }
-    ]
+  "version": 2,
+  "builds": [
+    {
+      "src": "backend/app.py",
+      "use": "@vercel/python"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "backend/app.py"
+    }
+  ],
+  "functions": {
+    "backend/app.py": {
+      "maxDuration": 30
+    }
   }
+}
