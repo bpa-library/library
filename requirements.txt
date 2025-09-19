@@ -16,10 +16,11 @@ boto3==1.26.142
 # Database - choose ONLY ONE based on your needs
 #IF MySQL
 
-mysql-connector-python==8.0.33
+#mysql-connector-python==8.0.33
 
 #ELSE
 
 psycopg2-binary==2.9.10
+
 
 
