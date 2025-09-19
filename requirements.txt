@@ -1,8 +1,8 @@
 
 # requirements.txt
 # Core Flask and API
-werkzeug==2.3.7
-gunicorn==20.1.0
+# werkzeug==2.3.7
+# gunicorn==20.1.0
 flask==2.3.2
 python-dotenv==1.0.0
 requests==2.31.0
@@ -21,6 +21,7 @@ boto3==1.26.142
 #ELSE
 
 psycopg2-binary==2.9.10
+
 
 
 
