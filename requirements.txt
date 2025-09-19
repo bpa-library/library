@@ -6,10 +6,11 @@
 
 flask==2.3.2
 werkzeug>=2.3.3
+serverless-wsgi>=3.0.3
 
 #flask==2.3.2
 #werkzeug==2.2.3
-serverless-wsgi==3.0.2
+#serverless-wsgi==3.0.2
 
 python-dotenv==1.0.0
 requests==2.31.0
@@ -31,26 +32,3 @@ boto3==1.26.142
 #ELSE
 
 psycopg2-binary==2.9.10
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
