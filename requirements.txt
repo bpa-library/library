@@ -7,18 +7,15 @@ requests==2.31.0
 PyJWT==2.8.0
 flask-cors==4.0.0
 serverless-wsgi==3.0.2
+
 # AWS (only if you're using S3 or other AWS services)
 boto3==1.26.142
 
 # Database - choose ONLY ONE based on your needs
 #IF MySQL
 
-mysql-connector-python==8.0.33     # If using MySQL
+mysql-connector-python==8.0.33
 
 #ELSE
-psycopg2-binary==2.9.10             # If using PostgreSQL
 
-# Streamlit - REMOVE THIS FOR VERCEL DEPLOYMENT
-# streamlit==1.28.1
-
-
+psycopg2-binary==2.9.10
