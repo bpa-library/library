@@ -8,8 +8,8 @@ load_dotenv()
 
 try:
     # Streamlit Cloud secrets
-    #API_URL = st.secrets["API_URL"]
-    API_URL = "https://libraryone.vercel.app/"
+    API_URL = st.secrets["API_URL"]
+    #API_URL = "https://libraryone.vercel.app/"
     DEBUG = st.secrets.get("DEBUG", "False").lower() == "true"
     ENVIRONMENT = st.secrets.get("ENVIRONMENT", "production")
 except (KeyError, AttributeError):
@@ -22,6 +22,7 @@ except (KeyError, AttributeError):
 print(f"✅ Environment: {ENVIRONMENT}")
 print(f"✅ API_URL: {API_URL}")
 print(f"✅ Debug mode: {DEBUG}")
+
 
 
 
