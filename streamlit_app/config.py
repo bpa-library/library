@@ -2,23 +2,26 @@
 ###########
 import os
 from dotenv import load_dotenv
+import streamlit as st
 
-# Load environment variables from .env file
 load_dotenv()
 
-API_URL = os.getenv('API_URL')
-#API_URL = os.getenv('API_URL', 'http://localhost:8000')
-#DATABASE_URL = os.getenv('DATABASE_URL', 'sqlite:///library.db')
-DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
-# SECRET_KEY = os.getenv('SECRET_KEY', 'fallback-secret-key')
-ENVIRONMENT = os.getenv('ENVIRONMENT', 'development')
+try:
+    # Streamlit Cloud secrets
+    API_URL = st.secrets["API_URL"]
+    DEBUG = st.secrets.get("DEBUG", "False").lower() == "true"
+    ENVIRONMENT = st.secrets.get("ENVIRONMENT", "production")
+except (KeyError, AttributeError):
+    # Fallback to .env file for local development
+    load_dotenv()
+    API_URL = os.getenv('API_URL', 'http://localhost:8000')
+    DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
+    ENVIRONMENT = os.getenv('ENVIRONMENT', 'development')
 
-# Better error handling
-if not API_URL:
-    print("⚠️  API_URL not found in .env file, using default localhost")
-    API_URL = "http://localhost:8000"
-
+print(f"✅ Environment: {ENVIRONMENT}")
 print(f"✅ API_URL: {API_URL}")
+print(f"✅ Debug mode: {DEBUG}")
+
 
 
 
