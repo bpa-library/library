@@ -7,7 +7,8 @@ python-dotenv==1.0.0
 requests==2.31.0
 PyJWT==2.8.0
 flask-cors==4.0.0
-werkzeug==2.2.3  # ← Use this specific version that works with serverless-wsgi
+
+werkzeug==2.3.7 
 serverless-wsgi==3.0.2
 
 
@@ -22,6 +23,7 @@ boto3==1.26.142
 #ELSE
 
 psycopg2-binary==2.9.10
+
 
 
 
