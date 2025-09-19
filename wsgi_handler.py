@@ -5,8 +5,9 @@ from app import app
 
 application = app
 
-def handler(event, context):
-    # from serverless_wsgi import handle_request
-    return handle_request(application, event, context)
+#def handler(event, context):
+#    # from serverless_wsgi import handle_request
+#    return handle_request(application, event, context)
+
 
 
