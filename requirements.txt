@@ -1,6 +1,7 @@
 
 # requirements.txt
 # Core Flask and API
+werkzeug==2.3.7
 flask==2.3.2
 python-dotenv==1.0.0
 requests==2.31.0
@@ -19,3 +20,4 @@ mysql-connector-python==8.0.33
 #ELSE
 
 psycopg2-binary==2.9.10
+
