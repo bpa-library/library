@@ -1,35 +1,21 @@
-
 # requirements.txt
-# Core Flask and API
-# gunicorn==20.1.0
-# serverless-wsgi==3.0.2
-
 flask==2.3.2
 werkzeug>=2.3.3
-# serverless-wsgi>=3.0.3
 
-#flask==2.3.2
-#werkzeug==2.2.3
-#serverless-wsgi==3.0.2
+# DONT serverless-wsgi==3.0.2
+# serverless-wsgi is designed for AWS Lambda API Gateway, not for Vercel’s Python runtime.
 
 python-dotenv==1.0.0
 requests==2.31.0
 PyJWT==2.8.0
 flask-cors==4.0.0
 
-
-# werkzeug==0.16.1
-
-# AWS (only if you're using S3 or other AWS services)
+# Storage
 boto3==1.26.142
-# gunicorn==20.1.0
+
 
 # Database - choose ONLY ONE based on your needs
 #IF MySQL
-
-#mysql-connector-python==8.0.33
-
+mysql-connector-python==8.0.33
 #ELSE
-
 psycopg2-binary==2.9.10
-
