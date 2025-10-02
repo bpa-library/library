@@ -1,8 +1,8 @@
 # streamlit_app/main.py
 import streamlit as st
-from auth import auth_page, check_authentication
-from config import API_URL, DEBUG  # Import from config
-# from admin.dashboard import admin_panel
+from auth import check_authentication, auth_page
+from config import API_URL, DEBUG
+from admin.dashboard import admin_panel
 from user.dashboard import user_dashboard
 
 # API_URL = "https://library-11.vercel.app"  # Your Flask API
@@ -20,14 +20,11 @@ def main():
         st.sidebar.info(f"Debug mode: {DEBUG}")
         st.sidebar.info(f"API: {API_URL}")
     
-    # Check authentication and route accordingly
     user_info = check_authentication()
-    
     if not user_info:
         auth_page()
     elif user_info.get('role') == 'admin':
-        # admin_panel()
-        pass
+        admin_panel()
     else:
         user_dashboard()
 

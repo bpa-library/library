@@ -1,8 +1,10 @@
-# config.py
-###########
+# streamlit_app/config.py
+#########################
 import os
 from dotenv import load_dotenv
 import streamlit as st
+from flask import Flask, jsonify, request
+
 
 load_dotenv()
 
@@ -21,10 +23,3 @@ except (KeyError, AttributeError):
 print(f"✅ Environment: {ENVIRONMENT}")
 print(f"✅ API_URL: {API_URL}")
 print(f"✅ Debug mode: {DEBUG}")
-
-
-
-
-
-
-

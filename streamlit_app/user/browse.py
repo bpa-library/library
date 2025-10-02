@@ -1,7 +1,10 @@
 # streamlit_app/user/browse.py
 import streamlit as st
 import requests
-from config import API_URL, DEBUG 
+from config import API_URL, DEBUG
+from components.helpers import format_date
+
+
 
 ######## browse_books ########
 def browse_books():
@@ -117,6 +120,7 @@ def display_book_details(book):
         st.write(f"**Added:** {format_date(book.get('created_at'))}")
     
     # Display chapters
+    print(f"book.get('chapters') = {book.get('chapters')}")
     if book.get('chapters'):
         st.subheader("Chapters")
         for chapter in book['chapters']:
@@ -128,7 +132,7 @@ def display_book_details(book):
 def display_chapter(book, chapter):
     """Display individual chapter with audio player"""
     chapter_col1, chapter_col2 = st.columns([3, 1])
-    
+    # print("display_chapter(book, chapter): chaper = ",chapter)
     with chapter_col1:
         st.write(f"**Chapter {chapter['chapter_number']}:** {chapter['title']}")
         # Show duration if available
@@ -136,7 +140,8 @@ def display_chapter(book, chapter):
             st.caption(f"Duration: {chapter['duration']}")
     
     with chapter_col2:
-        audio_key = f"audio_{book['id']}_{chapter['chapter_number']}"
+        audio_key = f"audio_{book['id']}_{chapter['id']}"
+        # audio_key = f"audio_{book['id']}_{chapter['chapter_number']}"
         
         if st.button("🎵 Play Audio", key=f"btn_{audio_key}", use_container_width=True):
             handle_audio_play(book, chapter, audio_key)
@@ -261,17 +266,23 @@ def sanitize_filename(filename):
 
 # Helper functions
 ######## browse_books - format_date ########
-def format_date(date_string):
-    """Format date string for display"""
-    if not date_string:
-        return "Unknown"
-    try:
-        from datetime import datetime
-        date_obj = datetime.strptime(date_string, '%Y-%m-%d %H:%M:%S')
-        return date_obj.strftime('%b %d, %Y')
-    except:
-        return date_string
+# def format_date(date_string):
+#     """Format date string for display"""
+#     if not date_string:
+#         return "Unknown"
+#     try:
+#         from datetime import datetime
+#         date_obj = datetime.strptime(date_string, '%Y-%m-%d %H:%M:%S')
+#         return date_obj.strftime('%b %d, %Y')
+#     except:
+#         return date_string
 ######## END - browse_books ########
+
+
+
+
+
+
 
 def show_book_recommendations():
     """Show book recommendations"""
