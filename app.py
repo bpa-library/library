@@ -12,21 +12,15 @@ from datetime import datetime, timedelta
 from flask_cors import CORS
 import base as b
 import storage as s
-import math  # Add this import at the top of your file
+# from storage import backblaze_store
+import math
 from datetime import datetime, timezone, timedelta  #
-
-# from dotenv import load_dotenv
-
-#from serverless_wsgi import handle_request
-
-# load_dotenv()  # Load .env file for local development
+import re
 
 # def handler(event, context):
 #     return handle_request(app, event, context)
 
 DB_TYPE = os.getenv('DB_TYPE').lower()   # MySQL / postgreSQL
-# db = 'MySQL'
-# db = 'postgreSQL'
 
 # PostgreSQL - Free Forever - https://neon.com/ - (Neon.tech)
 # Free Limit 3GB storage, Beyond Free $0.10/GB
@@ -37,7 +31,7 @@ DB_TYPE = os.getenv('DB_TYPE').lower()   # MySQL / postgreSQL
 app = Flask(__name__)
 CORS(app) 
 
-
+bz = s.backblaze_store()
 ###################
 from functools import wraps
 def admin_required(f):
@@ -121,44 +115,9 @@ def verify_token():
     except Exception as e:
         return jsonify({"valid": False, "error": str(e)}), 500
 ###################
-    
-@app.route('/admin/login', methods=['POST'])
-def admin_login():
-    data = request.get_json()
-    email = data.get('email')  # Using email instead of username
-    password = data.get('password')
-    
-    # Hash password
-    hashed_password = hashlib.sha256(password.encode()).hexdigest()
-    
-    # Check credentials with role validation
-    user = b.universal_db_select(
-        "SELECT id, name, email, role FROM users WHERE email = %s AND password = %s AND role = 'admin'",
-        (email, hashed_password)
-    )
-    
-    if user and len(user) > 0:
-        user_data = user[0]
-        token = jwt.encode({
-            'user_id': user_data['id'],
-            'email': user_data['email'],
-            'role': user_data['role'],
-            'exp': datetime.now(timezone.utc) + timedelta(hours=8)
-        }, os.getenv('JWT_SECRET'), algorithm='HS256')
-        
-        return jsonify({
-            "success": True,
-            "token": token,
-            "user": {
-                "id": user_data['id'],
-                "name": user_data['name'],
-                "email": user_data['email'],
-                "role": user_data['role']
-            }
-        })
-    
-    return jsonify({"success": False, "error": "Invalid admin credentials"}), 401
 
+
+################### Book Management - F
 @app.route('/admin/books', methods=['POST'])
 @admin_required
 def add_book():
@@ -168,7 +127,7 @@ def add_book():
             INSERT INTO books (title, author, publisher, isbn, description, category_id)
             VALUES (%s, %s, %s, %s, %s, %s)
         """
-        result = b.db_insert(query, (
+        result = b.db_insert (query, (
             data['title'], data['author'], data['publisher'], 
             data['isbn'], data['description'], data['category_id']
         ))
@@ -177,70 +136,140 @@ def add_book():
         
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+################### Book Management
 
-@app.route('/admin/upload-audio', methods=['POST'])
-@admin_required
-def upload_audio():
+################### upload
+@app.route('/api/upload_audio', methods=['POST'])
+def api_upload_audio():
     try:
-        book_id = request.form.get('book_id')
-        file = request.files.get('audio_file')
+        book_id = request.form.get("book_id")
+        file = request.files.get("file")
+
+        if not book_id or not file:
+            return jsonify({"success": False, "error": "Missing book_id or file"}), 400
         
-        if not file:
-            return jsonify({"error": "No file provided"}), 400
-        
-        # Get book info for folder structure
+        chapter_number = extract_chapter_number(file.filename)
+        if chapter_number is None:
+            # skip inserting into chapters
+            return jsonify({
+                "success": True,
+                "file_path": file.filename,
+                # "file_path": file_path,
+                "note": "Uploaded non-chapter audio (not saved in DB)"
+            }), 200
+
+        # Get book details
         book = b.universal_db_select("SELECT title, author FROM books WHERE id = %s", (book_id,))
         if not book:
-            return jsonify({"error": "Book not found"}), 404
-        
-        # Create folder path: "Title By Author"
-        folder_name = f"{book[0]['title']} By {book[0]['author']}"
+            return jsonify({"success": False, "error": "Book not found"}), 404
+        book = book[0]
+
+        folder_name = f"{book['title']} By {book['author']}"
         file_path = f"{folder_name}/{file.filename}"
-        
+
         # Upload to Backblaze
-        s3 = s.backblaze_store()
-        s3.upload_fileobj(file, os.getenv('B2_BUCKET'), file_path)
+        # s3 = s.backblaze_store()
+        bucket = os.getenv("B2_BUCKET")
+        bz.upload_fileobj(file, bucket, file_path, ExtraArgs={'ContentType': 'audio/mpeg'})
+        # s3.upload_fileobj(file, bucket, file_path, ExtraArgs={'ContentType': 'audio/mpeg'})
+
+        # Insert into chapters
+        # chapter_number = extract_chapter_number(file.filename)
         
-        # Add chapter to database
-        chapter_query = "INSERT INTO chapters (book_id, title) VALUES (%s, %s)"
-        b.db_insert(chapter_query, (book_id, file.filename))
-        
-        return jsonify({"message": "Audio uploaded successfully", "path": file_path})
-        
+        query = "INSERT INTO chapters (book_id, title, chapter_number) VALUES (%s, %s, %s)"
+        b.db_insert(query, (book_id, file.filename, chapter_number))
+
+        return jsonify({"success": True, "file_path": file_path}), 200
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
-    
+        return jsonify({"success": False, "error": str(e)}), 500
+
+def extract_chapter_number(filename):
+    """Extract chapter number from filename"""
+    try:
+        # Patterns: "aud001.mp3", "chapter01.mp3", "001.mp3", etc.
+
+        import re
+        name = filename.lower()
+
+        # Allow formats like aud001.mp3, chapter01.mp3, 001.mp3
+        match = re.match(r'^(?:aud|chapter)?0*(\d+)\.mp3$', name)
+        if match:
+            return int(match.group(1))
+
+        # If no valid match → skip
+        return None
+
+        # import re
+        # numbers = re.findall(r'\d+', filename)
+        # if numbers:
+        #     return int(numbers[0])
+        # return 1  # Default to chapter 1 if no number found
+    except:
+        return 1
+
+@app.route('/api/get_all_books', methods=['GET'])
+#@admin_required
+def api_get_all_books():
+    try:
+        books = b.universal_db_select("SELECT id, title, author FROM books ORDER BY title")
+        return jsonify({"success": True, "books": books if books else []}), 200
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+################### upload
+
+################### Book Management - F
+@app.route('/api/get_book', methods=['GET'])
+def api_get_book():
+    """Get single book details by ID"""
+    try:
+        book_id = request.args.get("book_id", type=int)
+        if not book_id:
+            return jsonify({"success": False, "error": "book_id required"}), 400
+
+        query = "SELECT id, title, author FROM books WHERE id = %s"
+        book = b.universal_db_select(query, (book_id,))
+        
+        if not book:
+            return jsonify({"success": False, "error": "Book not found"}), 404
+
+        return jsonify({"success": True, "book": book[0]}), 200
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
 ###################
+
+################### admin_users.py
 @app.route('/admin/users', methods=['GET'])
 @admin_required
 def get_users():
     try:
-        page = request.args.get('page', 1, type=int)
-        limit = request.args.get('limit', 50, type=int)
-        offset = (page - 1) * limit
+        search = request.args.get('search', '')
+        role_filter = request.args.get('role', '')
         
-        users = b.universal_db_select(
-            "SELECT id, name, email, role, membership_number FROM users ORDER BY id LIMIT %s OFFSET %s",
-            (limit, offset)
-        )
+        query = "SELECT id, name, email, role, membership_number FROM users WHERE 1=1"
+        params = []
         
-        total_count = b.universal_db_select("SELECT COUNT(*) as total FROM users")
-        total = total_count[0]['total'] if total_count else 0
+        if search:
+            query += " AND (name LIKE %s OR email LIKE %s)"
+            params.extend([f'%{search}%', f'%{search}%'])
+        
+        if role_filter and role_filter != 'All':
+            query += " AND role = %s"
+            params.append(role_filter)
+        
+        query += " ORDER BY name"
+        
+        users = b.universal_db_select(query, params)
         
         return jsonify({
             "success": True,
-            "users": users,
-            "pagination": {
-                "page": page,
-                "limit": limit,
-                "total": total,
-                "pages": math.ceil(total / limit) if total > 0 else 0
-            }
+            "users": users
         })
         
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+###################
 
+###################
 @app.route('/admin/users/<int:user_id>/role', methods=['PUT'])
 @admin_required
 def update_user_role(user_id):
@@ -251,7 +280,7 @@ def update_user_role(user_id):
         if new_role not in ['member', 'admin']:
             return jsonify({"success": False, "error": "Invalid role"}), 400
         
-        result = b.db_execute(
+        result = b.db_update(
             "UPDATE users SET role = %s WHERE id = %s",
             (new_role, user_id)
         )
@@ -265,21 +294,170 @@ def update_user_role(user_id):
         return jsonify({"success": False, "error": str(e)}), 500
 ###################
 
+@app.route('/admin/users/<int:user_id>', methods=['DELETE'])
+@admin_required
+def delete_user(user_id):
+    try:
+        # Prevent admin from deleting themselves
+        token = request.headers.get('Authorization', '')
+        if token.startswith('Bearer '):
+                token = token[7:]
+        decoded = jwt.decode(token, os.getenv('JWT_SECRET'), algorithms=['HS256'])
+
+        current_user_id = decoded['user_id']
+        if user_id == current_user_id:
+            return jsonify({"success": False, "error": "Cannot delete your own account"}), 400
+        
+        result = b.db_execute (
+            "DELETE FROM users WHERE id = %s", (user_id,)
+        )
+        
+        if result:
+            return jsonify({"success": True, "message": "User deleted successfully"})
+        else:
+            return jsonify({"success": False, "error": "User not found"}), 404
+            
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/admin/users/analytics', methods=['GET'])
+@admin_required
+def get_user_analytics():
+    try:
+        # Get total user count
+        total_users = b.universal_db_select("SELECT COUNT(*) as count FROM users")[0]['count']
+        
+        # Get users by role
+        role_counts = b.universal_db_select(
+            "SELECT role, COUNT(*) as count FROM users GROUP BY role"
+        )
+        
+        # Get recent signups (last 30 days)
+        recent_signups = b.universal_db_select(
+            "SELECT COUNT(*) as count FROM users WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)"
+        )[0]['count']
+        
+        # Convert role counts to dictionary
+        role_dict = {item['role']: item['count'] for item in role_counts}
+        
+        analytics = {
+            'total_users': total_users,
+            'admin_count': role_dict.get('admin', 0),
+            'member_count': role_dict.get('member', 0),
+            'recent_signups': recent_signups
+        }
+        
+        return jsonify({
+            "success": True,
+            "analytics": analytics
+        })
+        
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+###################
+
+
+###################
+@app.route("/api/get-total-books", methods=["GET"])
+def api_get_total_books():
+    try:
+        result = b.universal_db_select("SELECT COUNT(1) as count FROM books")
+        count = result[0]['count'] if result else 0
+        return jsonify({"success": True, "count": count})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+###################
+
+###################
+@app.route("/api/get-total-users", methods=["GET"])
+def api_get_total_users():
+    try:
+        result = b.universal_db_select("SELECT COUNT(1) as count FROM users")
+        count = result[0]['count'] if result else 0
+        return jsonify({"success": True, "count": count})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+###################
+###################
+@app.route("/api/get-total-chapters", methods=["GET"])
+def api_get_total_chapters():
+    try:
+        result = b.universal_db_select("SELECT COUNT(1) as count FROM chapters")
+        count = result[0]['count'] if result else 0
+        return jsonify({"success": True, "count": count})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
 
 ###################
 
 ###################
+def check_database_status():
+    try:
+        result = b.universal_db_select("SELECT 1 as test")
+        return result is not None
+    except:
+        return False
+    
+@app.route('/api/check_database_status', methods=['GET'])
+def api_check_database_status():
+    status = check_database_status()
+    return jsonify({"database_connected": status})
+###################
 
-# Add this endpoint to your Flask app
+###################
+@app.route('/api/check_backblaze_status', methods=['GET'])
+def api_check_backblaze_status():
+    status = True if bz else '❌ Disconnected'
+    return jsonify({"backblaze_connected": status })
+###################  
+
+################### admin_dashboard.py
+@app.route("/api/get-storage-usage", methods=["GET"])
+def api_get_storage_usage():
+    try:
+        # s3 = s.backblaze_store()
+        s3 = bz
+        bucket_name = os.getenv("B2_BUCKET")
+        if not s3 or not bucket_name:
+            return jsonify({"success": False, "error": "Storage not configured"}), 500
+
+        total_size = 0
+        continuation_token = None
+
+        while True:
+            if continuation_token:
+                resp = s3.list_objects_v2(Bucket=bucket_name, ContinuationToken=continuation_token)
+            else:
+                resp = s3.list_objects_v2(Bucket=bucket_name)
+
+            for obj in resp.get("Contents", []):
+                total_size += obj["Size"]
+
+            if resp.get("IsTruncated"):
+                continuation_token = resp.get("NextContinuationToken")
+            else:
+                break
+
+        quota_gb = float(os.getenv("B2_STORAGE_QUOTA_GB", "10"))
+        used_gb = round(total_size / (1024**3), 2)
+        usage_ratio = min(used_gb / quota_gb, 1.0)
+
+        return jsonify({
+            "success": True,
+            "used_gb": used_gb,
+            "quota_gb": quota_gb,
+            "usage_ratio": usage_ratio
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+################### admin_dashboard.py
+
+
 @app.route('/api/audio-url/<int:book_id>/<path:chapter_title>')
 def get_audio_url(book_id, chapter_title):
     try:
-        # The chapter_title is now automatically URL decoded by Flask
-        # No need to urllib.parse.unquote() it
-    
-        # Get book title from database
         book_result = b.universal_db_select("SELECT title, author FROM books WHERE id = %s", (book_id,))
-
         if not book_result or len(book_result) == 0:
             return jsonify({"error": "Book not found"}), 404
         
@@ -306,47 +484,10 @@ def get_audio_url(book_id, chapter_title):
         return jsonify({"error": str(e)}), 500
 
 
-# # Add this endpoint to your Flask app
-# @app.route('/api/audio-url/<int:book_id>/<path:chapter_title>')
-# def get_audio_url(book_id, chapter_title):
-    try:
-        # The chapter_title is now automatically URL decoded by Flask
-        # No need to urllib.parse.unquote() it
-    
-        # Get book title from database
-        book_result = b.universal_db_select("SELECT title FROM books WHERE id = %s", (book_id,))
-
-        if not book_result or len(book_result) == 0:
-            return jsonify({"error": "Book not found"}), 404
-        
-        book = book_result[0]
-
-        # Generate file path
-        # file_path = f"{book['title']}/{chapter_title}"
-
-        import urllib.parse
-        decoded_title = urllib.parse.unquote(chapter_title)
-        file_path = f"{book['title']}/{decoded_title}"
-        # Generate signed URL
-        #file_path = f"{book['title']}/{chapter_title}"
-        signed_url = generate_signed_url(
-            os.getenv('B2_BUCKET'),
-            file_path,
-            expiration=3600  # 1 hour expiry
-        )
-        
-        if signed_url:
-            return jsonify({"url": signed_url})
-        else:
-            return jsonify({"error": "Failed to generate audio URL"}), 500
-            
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
 
 @app.route('/health')
 def health():
-    return jsonify({"status": "healthy", "db": "ok" if MySQL_db() else "down"})
+    return jsonify({"status": "healthy", "db": "ok" if b.MySQL_db() else "down"})
     
 @app.route('/debug')
 def debug():
@@ -357,30 +498,11 @@ def debug():
     if not request.headers.get('X-Auth') == os.getenv('X_AUTH_SECRET'):
         return jsonify({"error": "Unauthorized"}), 401
     return jsonify({
-        "db_status": "Connected" if MySQL_db() else "Failed",
+        "db_status": "Connected" if b.MySQL_db() else "Failed",
         "env_vars": {k:v for k,v in os.environ.items() if k.startswith('DB_')}
     })
 
-# def backblaze_store():
-#     return boto3.client(
-#         's3',
-#         endpoint_url='https://s3.eu-central-003.backblazeb2.com',  # Use your actual endpoint
-#         aws_access_key_id=os.getenv('B2_KEY_ID'),
-#         aws_secret_access_key=os.getenv('B2_APP_KEY')
-#     )
 
-# def backblaze_store():
-#     try:
-#         return boto3.client(
-#             's3',
-#             endpoint_url=os.getenv('B2_ENDPOINT'),
-#             aws_access_key_id=os.getenv('B2_KEY_ID'),
-#             aws_secret_access_key=os.getenv('B2_APP_KEY'),
-#             region_name=os.getenv('region_name')
-#         )
-#     except Exception as e:
-#         print(f"❌ Backblaze B2 connection failed: {str(e)}")
-#         return False
 
 @app.route('/', methods=['GET'])
 def home():
@@ -452,6 +574,7 @@ def api_register():
         email = data.get('email', '').strip().lower()
         password = data.get('password', '')
         membership_number = data.get('membership_number', '').strip()
+        role = data.get('role', '').strip()
         
         if not name or not email or not password:
             return jsonify({"success": False, "error": "Name, email, and password are required"}), 400
@@ -474,10 +597,11 @@ def api_register():
         # Insert user (works for both databases)
         insert_query = """
             INSERT INTO users (name, email, password, membership_number, role)
-            VALUES (%s, %s, %s, %s, 'member')
+            VALUES (%s, %s, %s, %s, %s)
         """
-        
-        insert_result = b.db_insert(insert_query, (name, email, hashed_password, membership_number or None))
+        # -- VALUES (%s, %s, %s, %s, 'member')
+
+        insert_result = b.db_insert(insert_query, (name, email, hashed_password, membership_number or None, role))
         
         # Check if insert was successful
         if insert_result is None or insert_result <= 0:
@@ -523,6 +647,7 @@ def api_register():
             return jsonify({"success": False, "error": "Email or membership number already exists"}), 409
         return jsonify({"success": False, "error": f"Registration failed: {str(e)}"}), 500
     
+
 def get_books_with_search(search_term, limit, offset):
     """Universal search that works with both MySQL and PostgreSQL"""
     
@@ -571,9 +696,10 @@ def get_books_with_search(search_term, limit, offset):
         # Use pattern matching for LIKE
         search_pattern = f'%{search_term}%'
         params = (search_pattern, search_pattern, search_pattern, limit, offset)
-    
-    else:
+        # print("get_books_with_search() 1111")
+    else: 
         # Fallback for other databases
+        print("Fallback for other databases")
         query = """
             SELECT 
                 b.id as book_id,
@@ -599,6 +725,7 @@ def get_books_with_search(search_term, limit, offset):
 @app.route('/books', methods=['GET'])
 def get_books():
     try:
+        # print("get_books()")
         # Get pagination parameters
         page = request.args.get('page', 1, type=int)
         limit = request.args.get('limit', 50, type=int)
@@ -608,7 +735,9 @@ def get_books():
         # Build query based on search
         if search:
             # Use the universal search function
+            
             results = get_books_with_search(search, limit, offset)
+            # print(results)
 
             # Get total count for search
             if b.DB_TYPE == 'mysql':
@@ -621,7 +750,7 @@ def get_books():
                        OR MATCH(cat.name) AGAINST (%s)
                 """
                 total_count = b.universal_db_select(count_query, (search, search, search))
-            else:
+            else: # postgesql
                 count_query = """
                     SELECT COUNT(DISTINCT b.id) as total
                     FROM books b
@@ -632,7 +761,6 @@ def get_books():
                 total_count = b.universal_db_select(count_query, (search_pattern, search_pattern, search_pattern))
         
         else:
-            # No search - simple pagination
             query = """
                 SELECT 
                     b.id as book_id,
@@ -650,6 +778,11 @@ def get_books():
                 LIMIT %s OFFSET %s
             """
             results = b.universal_db_select(query, (limit, offset))
+
+
+            # books_results = b.universal_db_select(books_query, (limit, offset))
+            # books_with_chapters_results = b.universal_db_select(books_with_chapters_query, (limit, offset))
+
             total_count = b.universal_db_select("SELECT COUNT(*) as total FROM books")
 
         # Process results (same as before)
@@ -712,197 +845,13 @@ def get_books():
             "error": "Internal server error"
         }), 500
         
-# @app.route('/books', methods=['GET'])
-# def get_books():
-#     try:
-#         # Use parameterized query with optional parameters
-#         page = request.args.get('page', 1, type=int)
-#         limit = request.args.get('limit', 50, type=int)
-#         offset = (page - 1) * limit
-
-#         query = """
-#             SELECT 
-#                 b.id as book_id,
-#                 b.title as book_title,
-#                 b.author,
-#                 b.category_id,  -- Changed from b.category
-#                 c.id as chapter_id,
-#                 c.chapter_number,
-#                 c.title as chapter_title
-#             FROM books b
-#             LEFT JOIN chapters c ON b.id = c.book_id 
-#             ORDER BY b.title, c.chapter_number
-#             LIMIT %s OFFSET %s
-#         """
-
-#         results = b.universal_db_select(query, (limit, offset))
-        
-#         if results is None:  # Handle case where function returns None
-#             return jsonify({"books": [], "message": "No books found"})
-        
-#         books = {}
-#         for row in results:
-#             book_id = row['book_id']
-#             if book_id not in books:
-#                 books[book_id] = {
-#                     'id': book_id,
-#                     'title': row['book_title'],
-#                     'author': row.get('author', ''),
-#                     'category_id': row.get('category_id'),  # Changed from category
-#                     'chapters': []
-#                 }
-            
-#             # Add chapter if it exists
-#             if row.get('chapter_id'):
-#                 books[book_id]['chapters'].append({
-#                     'id': row['chapter_id'],
-#                     'chapter_number': row['chapter_number'],
-#                     'title': row['chapter_title']
-#                 })
-        
-#         books_list = list(books.values())
-        
-#         response = jsonify({
-#             "success": True,
-#             "books": books_list,
-#             "pagination": {
-#                 "page": page,
-#                 "limit": limit,
-#                 "count": len(books_list)
-#             }
-#         })
-#         response.headers["Cache-Control"] = "public, max-age=3600"
-#         return response
-
-#     except Exception as e:
-#         print(f"Error fetching books: {str(e)}")
-#         return jsonify({
-#             "success": False,
-#             "error": "Internal server error",
-#             "message": str(e)
-#         }), 500
-    
-
-# @app.route('/books', methods=['GET'])
-# def get_books():
-#     try:
-#         db = MySQL_db()
-#         if db is None:
-#             return jsonify({"error": "Database connection failed"}), 500
-#             # return jsonify({"error": "DB connection failed", "env": dict(os.environ)}), 500
-        
-#         cursor = db.cursor(dictionary=True)
-#         cursor.execute("""
-#                     SELECT 
-#                         b.id as book_id,
-#                         b.title as book_title,
-#                         c.id as chapter_id,
-#                         c.chapter_number,
-#                         c.title as chapter_title
-#                     FROM books b
-#                     INNER JOIN chapters c ON b.id = c.book_id 
-#                     ORDER BY b.title, c.chapter_number
-#                     LIMIT 10
-#                 """)
-#         results = cursor.fetchall()
-
-#         books = {}
-#         for row in results:
-#             book_id = row['book_id']
-#             if book_id not in books:
-#                 books[book_id] = {
-#                     'id': book_id,
-#                     'title': row['book_title'],
-#                     'chapters': []
-#                 }
-            
-#             if row['chapter_id']:  # Only add if chapter exists
-#                 books[book_id]['chapters'].append({
-#                     'title': row['chapter_title'],
-#                     'id': row['chapter_id'],
-#                     'chapter_number': row['chapter_number']
-#                 })
-        
-#         return jsonify({"books": list(books.values())})
-
-#         # response = jsonify({"books": books})
-#         # response.headers["Cache-Control"] = "public, max-age=3600"  # 1 hour cache
-#     except Exception as e:
-#         return jsonify({"error": str(e)}), 500
-#     finally:
-#         if 'cursor' in locals(): cursor.close()
-#         if 'db' in locals(): db.close()
-
-# Storage - Backblaze connection
-# def upload_to_b2(file_path):
-    s3 = boto3.client(
-        's3',
-        endpoint_url=os.getenv('B2_ENDPOINT'),
-        aws_access_key_id=os.getenv('B2_KEY_ID'),
-        aws_secret_access_key=os.getenv('B2_APP_KEY')
-    )
-    
-    try:
-        file_name = os.path.basename(file_path)
-        B2_BUCKET = os.getenv('B2_BUCKET')
-        s3.upload_file(file_path, B2_BUCKET, file_name)
-        print(f"Successfully uploaded {file_name} to {B2_BUCKET}")
-        return True
-    except Exception as e:
-        print(f"Upload failed: {str(e)}")
-        return False
-
-    # Test upload
-    file_path = r"E:\Books-Audible\The Girl in Room 105 (Hindi)\Chapter 05.mp3"
-    
-    # Verify file exists first
-    if not os.path.exists(file_path):
-        print(f"Error: File not found at {file_path}")
-    else:
-        if upload_to_b2(file_path):
-            print("Starting Flask server...")
-            app.run(host="0.0.0.0", port=8000)
-
-def test_b2_connection():
-    """Test if Backblaze B2 credentials work"""
-    try:
-        s3 = backblaze_store()
-        print("✅ Connected to Backblaze B2 successfully!")
-        
-        # Test bucket access directly (skip list_buckets)
-        try:
-            s3.head_bucket(Bucket=os.getenv('B2_BUCKET'))
-            print(f"✅ Access to bucket '{os.getenv('B2_BUCKET')}' confirmed!")
-            
-            # Test if we can list objects in the bucket
-            try:
-                response = s3.list_objects_v2(
-                    Bucket=os.getenv('B2_BUCKET'),
-                    MaxKeys=5  # Limit to first 5 objects
-                )
-                print(f"✅ Can list objects in bucket")
-                if 'Contents' in response:
-                    print("Sample files in bucket:")
-                    for obj in response['Contents'][:3]:  # Show first 3 files
-                        print(f"  - {obj['Key']} ({obj['Size']} bytes)")
-                return True
-            except Exception as list_error:
-                print(f"❌ Cannot list objects: {str(list_error)}")
-                return False
-                
-        except Exception as e:
-            print(f"❌ Cannot access bucket: {str(e)}")
-            return False
-            
-    except Exception as e:
-        print(f"❌ Backblaze B2 connection failed: {str(e)}")
-        return False
 
 
 def generate_signed_url(bucket_name, file_path, expiration=3600):
     """Generate a signed URL for private Backblaze B2 files"""
     try:
-        s3 = s.backblaze_store()
+        # s3 = s.backblaze_store()
+        s3 = bz
         
         url = s3.generate_presigned_url(
             'get_object',
@@ -920,31 +869,77 @@ def generate_signed_url(bucket_name, file_path, expiration=3600):
 
 ##########
 def record_audio_play(user_id, book_id, chapter_id=None, duration=0, progress=0):
-    """Record when a user plays an audio file"""
+# def record_audio_play(user_id, book_id, chapter_id=None, current_chapter=None, progress=0):
+    """
+    Record audio play in access_history - but only if no recent record exists
+    Returns True if a new record was created, False if an existing record was updated
+    """
     try:
-        if not user_id:
-            print("⚠️ Cannot record play: No user ID")
-            return False
-        
-        query = """
-            INSERT INTO access_history (user_id, book_id, chapter_id, duration, progress)
-            VALUES (%s, %s, %s, %s, %s)
-            ON CONFLICT DO NOTHING  -- For PostgreSQL, or use INSERT IGNORE for MySQL
-        """
-        
-        # For MySQL, use this query instead:
-        if DB_TYPE == 'mysql':
-            query = """
-                INSERT IGNORE INTO access_history (user_id, book_id, chapter_id, duration, progress)
-                VALUES (%s, %s, %s, %s, %s)
+        # First, check if there's a recent record for this user/book/chapter combination
+        # (within the last 5 minutes) that we should update instead of creating a new one
+        if chapter_id:
+            check_query = """
+                SELECT id, duration, progress 
+                FROM access_history 
+                WHERE user_id = %s 
+                AND book_id = %s 
+                AND chapter_id = %s 
+                AND accessed_at >= NOW() - INTERVAL '5 minutes'
+                ORDER BY accessed_at DESC 
+                LIMIT 1
             """
+            params = (user_id, book_id, chapter_id)
+        else:
+            check_query = """
+                SELECT id, duration, progress 
+                FROM access_history 
+                WHERE user_id = %s 
+                AND book_id = %s 
+                AND chapter_id IS NULL 
+                AND accessed_at >= NOW() - INTERVAL '5 minutes'
+                ORDER BY accessed_at DESC 
+                LIMIT 1
+            """
+            params = (user_id, book_id)
         
-        result = b.db_execute(query, (user_id, book_id, chapter_id, duration, progress))
-        return result is not None
+        existing_record = b.db_select(check_query, params, fetch_one=True)
+        
+        if existing_record:
+            # Update the existing record instead of creating a new one
+            record_id, current_duration, current_progress = existing_record
+            
+            # Only update if the new progress is greater than current progress
+            if progress > current_progress:
+                update_query = """
+                    UPDATE access_history 
+                    SET progress = %s, 
+                        duration = GREATEST(duration, %s),
+                        accessed_at = NOW()
+                    WHERE id = %s
+                """
+                b.db_update(update_query, (progress, progress, record_id))
+                print(f"✅ Updated existing record {record_id} with progress {progress}")
+                return False  # Indicate that we updated, not created
+            else:
+                print(f"ℹ️ Keeping existing record {record_id} (progress {current_progress} >= new {progress})")
+                return False
+        
+        # If no recent record exists, create a new one
+        query = """
+            INSERT INTO access_history 
+            (user_id, book_id, chapter_id, progress, duration, accessed_at)
+            VALUES (%s, %s, %s, %s, %s, NOW())
+        """
+        params = (user_id, book_id, chapter_id, duration, progress)
+        
+        b.db_insert(query, params)
+        print(f"✅ Created new record for user {user_id}, book {book_id}, chapter {chapter_id}")
+        return True
         
     except Exception as e:
-        print(f"❌ Error recording audio play: {str(e)}")
+        print(f"❌ Error recording audio play: {e}")
         return False
+
     
 @app.route('/api/record-play', methods=['POST'])
 def api_record_play():
@@ -960,7 +955,6 @@ def api_record_play():
         if not user_id or not book_id:
             return jsonify({"success": False, "error": "Missing required fields"}), 400
         
-        # Use your existing record function
         success = record_audio_play(user_id, book_id, chapter_id, duration, progress)
         
         return jsonify({"success": success})
@@ -968,6 +962,8 @@ def api_record_play():
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 ##########
+
+
 
 def remove_from_favorites(user_id, book_id):
     """Remove a book from user's favorites"""
@@ -1027,13 +1023,18 @@ def api_get_chapter_by_number():
 def api_get_chapters():
     """API endpoint for various chapter operations"""
     try:
+        print("api_get_chapters()")
         # Get by ID
         chapter_id = request.args.get('id', type=int)
+        print(f"api_get_chapters : 1 {chapter_id}")
         if chapter_id:
+            print("api_get_chapters : 1.5")
             chapter = get_chapter_by_id(chapter_id)
             if chapter:
+                print("api_get_chapters : 2")
                 return jsonify({"success": True, "chapter": chapter})
             else:
+                print("api_get_chapters : 3")
                 return jsonify({"success": False, "error": "Chapter not found"}), 404
         
         # Get by book ID and chapter number
@@ -1043,14 +1044,20 @@ def api_get_chapters():
         if book_id and chapter_number:
             chapter = get_chapter_by_number(book_id, chapter_number)
             if chapter:
+                print("api_get_chapters : 4")
                 return jsonify({"success": True, "chapter": chapter})
             else:
+                print("api_get_chapters : 5")
                 return jsonify({"success": False, "error": "Chapter not found"}), 404
         
         # Get all chapters for a book
+        print("api_get_chapters : 6")
         if book_id:
+            print(f"api_get_chapters : 7  {book_id}")
             chapters = get_book_chapters(book_id)
-            return jsonify({"success": True, "chapters": chapters})
+            # chapters = get_book_chapters(book_id)
+            # print(f"api_get_chapters : 8 {chapters}")
+            return jsonify({"success": True, "chapters": chapters})     #"Non chapters"
         
         return jsonify({"success": False, "error": "Invalid parameters"}), 400
             
@@ -1064,60 +1071,272 @@ def get_chapter_by_id(chapter_id):
         return result[0] if result else None
     except:
         return None
+    
+def get_book_chapters(book_id):
+    query = "SELECT title, chapter_number FROM chapters WHERE book_id = %s ORDER BY chapter_number"
+    return b.universal_db_select(query, (book_id,))
+
 ########
 
-
-
-# if __name__ == "__main__":
-#     print("Testing database connection...")
+######## my_library - show_recently_played - show_recently_played ########
+# Database helper functions (to be implemented)
+def get_recently_played(user_id, limit=10):
+    """Get user's recently played books from database with detailed progress"""
+    try:
+        query = """
+            SELECT DISTINCT ON (b.id, ah.chapter_id)
+                b.id, 
+                b.title, 
+                b.author, 
+                ah.accessed_at as last_played,
+                ah.progress, 
+                ah.duration,
+                ah.chapter_id, 
+                c.title as current_chapter,
+                c.chapter_number
+            FROM access_history ah
+            JOIN books b ON ah.book_id = b.id
+            LEFT JOIN chapters c ON ah.chapter_id = c.id
+            WHERE ah.user_id = %s
+            ORDER BY b.id, ah.chapter_id, ah.accessed_at DESC
+            LIMIT %s
+        """
+        results = b.universal_db_select(query, (user_id, limit))
+        
+        # Debug: Print what we're getting from the database
+        # print(f"📊 Raw database results for user {user_id}:")
+        # for i, book in enumerate(results):
+        #     print(f"  Book {i+1}: ID={book['id']}, Progress={book.get('progress', 'N/A')}, Duration={book.get('duration', 'N/A')}")
+        
+        return results
+        # results = b.universal_db_select(query, (user_id, limit))
+        # return results
+    except Exception as e:
+        print(f"❌ Error getting recently played: {str(e)}")
+        return []
     
-    # test_db = MySQL_db()
-    # if test_db:
-    #     print("✅ Connected to Railway Database successful!")
-    #     test_db.close()
-    # else:
-    #     print("❌ Railway Database connection failed - check credentials")
-
-    # catagry()
-
-    # test_b2_connection()
-    # print("\nTesting Backblaze B2 connection...")
-    # test_b2_simple()
-
-    # # Test signed URL generation
-    # print("\nTesting signed URL generation...")
     
-    # signed_url = generate_signed_url(
-    #     os.getenv('B2_BUCKET'),
-    #     "BHARAT NA 75 FILM UDHYOGNA SITARO/Chapter 01.mp3"
-    # )
+@app.route('/api/get_recently-played', methods=['GET'])
+def api_get_recently_played():
+    """API endpoint to get user's recently played books"""
+    # print("api_get_recently_played()")
+    try:
+        user_id = request.args.get('user_id')
+        limit = request.args.get('limit', 10, type=int)
+
+        if not user_id:
+            return jsonify({"success": False, "error": "User ID is required"}), 400
+        
+        # Validate limit
+        if limit > 50:  # Prevent excessive queries
+            limit = 50
+        elif limit < 1:
+            limit = 10
+        
+        recently_played = get_recently_played(user_id, limit)
+        
+        return jsonify({
+            "success": True,
+            "data": recently_played,
+            "count": len(recently_played),
+            "user_id": user_id
+        })
+        
+    except Exception as e:
+        print(f"❌ Error in /api/recently-played: {str(e)}")
+        return jsonify({
+            "success": False,
+            "error": "Failed to fetch recently played books",
+            "message": str(e)
+        }), 500
+######## my_library - show_recently_played - show_recently_played ########
+
+######## my_library - get_book_by_id ########
+def get_book_by_id(book_id):
+    try:
+        result = b.universal_db_select("""
+            SELECT b.*, c.name as category_name 
+            FROM books b 
+            LEFT JOIN categories c ON b.category_id = c.id 
+            WHERE b.id = %s
+        """, (book_id,))
+        return result[0] if result else None
+    except Exception as e:
+        print(f"❌ Error getting book by ID: {str(e)}")
+        return None
     
-    # if signed_url:
-    #     print(f"Signed URL: {signed_url}")
+@app.route('/api/books/<int:book_id>', methods=['GET'])
+def api_get_book_by_id(book_id):
+    """API endpoint to get book by ID"""
+    try:
+        book = get_book_by_id(book_id)
+        
+        if book:
+            return jsonify({
+                "success": True,
+                "book": book
+            })
+        else:
+            return jsonify({
+                "success": False,
+                "error": "Book not found"
+            }), 404
+            
+    except Exception as e:
+        print(f"❌ Error in /api/books/{book_id}: {str(e)}")
+        return jsonify({
+            "success": False,
+            "error": "Failed to fetch book",
+            "message": str(e)
+        }), 500
 
-    #     try:
-    #         # Use GET instead of HEAD for testing
-    #         response = requests.get(signed_url, timeout=10, stream=True)
-    #         if response.status_code == 200:
-    #             print("✅ Signed URL works!")
-    #             print(f"Content-Type: {response.headers.get('content-type')}")
-    #             print(f"Content-Length: {response.headers.get('content-length')} bytes")
-    #         else:
-    #             print(f"❌ Signed URL failed with status: {response.status_code}")
-    #             print(f"Response headers: {dict(response.headers)}")
-    #     except Exception as e:
-    #         print(f"❌ Signed URL test failed: {str(e)}")
-    # else:
-    #     print("❌ Failed to generate signed URL")
+######## my_library - record_download ########
+def record_download(user_id, book_id, chapter_id, file_path, file_size):
+    """Record a download in the database"""
+    try:
+        query = """
+            INSERT INTO downloads (user_id, book_id, chapter_id, file_path, file_size)
+            VALUES (%s, %s, %s, %s, %s)
+        """
+        result = b.db_execute(query, (user_id, book_id, chapter_id, file_path, file_size))
+        return result is not None
+    except Exception as e:
+        print(f"❌ Error recording download: {str(e)}")
+        return False
 
-    # app.run(host="0.0.0.0", port=8000)
+@app.route('/api/record-download', methods=['POST'])
+def api_record_download():
+    """API endpoint to record a download"""
+    try:
+        data = request.get_json()
+        user_id = data.get('user_id')
+        book_id = data.get('book_id')
+        chapter_id = data.get('chapter_id')
+        file_path = data.get('file_path')
+        file_size = data.get('file_size')
+        
+        # Validate required fields
+        if not all([user_id, book_id, file_path, file_size]):
+            return jsonify({
+                "success": False, 
+                "error": "Missing required fields: user_id, book_id, file_path, file_size"
+            }), 400
+        
+        # Use your existing function
+        success = record_download(user_id, book_id, chapter_id, file_path, file_size)
+        
+        return jsonify({
+            "success": success,
+            "message": "Download recorded successfully" if success else "Failed to record download"
+        })
+        
+    except Exception as e:
+        print(f"❌ Error in /api/record-download: {str(e)}")
+        return jsonify({
+            "success": False,
+            "error": "Failed to record download",
+            "message": str(e)
+        }), 500
+######## my_library - record_download ########
+
+######## my_library - update_playback_progress/playback ########
+######## browse_books - update_playback_progress/playback ########
+def update_playback(user_id, book_id, chapter_id=None, duration=0, progress=0):
+    """Update playback progress in database"""
+    print("update_playback()")
+    try:
+        # print(f"🗄️ Starting DB update for user {user_id}, book {book_id}")
+        
+        # Ensure integers
+        duration = int(round(duration))
+        progress = int(round(progress))
+        
+        # print(f"🔢 Final values - duration: {duration} (type: {type(duration)}), progress: {progress} (type: {type(progress)})")
+
+        if DB_TYPE == "postgresql":
+            query = """
+                WITH cte AS (
+                    SELECT id
+                    FROM access_history
+                    WHERE user_id = %s
+                      AND book_id = %s
+                      AND (chapter_id = %s OR (%s IS NULL AND chapter_id IS NULL))
+                    ORDER BY accessed_at DESC
+                    LIMIT 1
+                )
+                UPDATE access_history ah
+                SET duration = %s,
+                    progress = %s,
+                    accessed_at = NOW()
+                FROM cte
+                WHERE ah.id = cte.id
+            """
+            params = (user_id, book_id, chapter_id, chapter_id, duration, progress)
+
+        else:  # MySQL supports ORDER BY + LIMIT
+            query = """
+                UPDATE access_history 
+                SET duration = %s, progress = %s, accessed_at = NOW()
+                WHERE user_id = %s AND book_id = %s 
+                  AND (chapter_id = %s OR (%s IS NULL AND chapter_id IS NULL))
+                ORDER BY accessed_at DESC
+                LIMIT 1
+            """
+            params = (duration, progress, user_id, book_id, chapter_id, chapter_id)
+
+        # print(f"📝 Executing query: {query}")
+        # print(f"duration = {duration}, progress = {progress}, user_id = {user_id}, book_id = {book_id}, chapter_id = {chapter_id}, chapter_id = {chapter_id}")
+        result = b.db_update(query, params)
+        # print(f"✅ DB update result: {result}")
+        
+        # Check if any rows were affected
+        if hasattr(result, 'rowcount'):
+            print(f"📊 Rows affected: {result.rowcount}")
+
+        return result is not None
+
+    except Exception as e:
+        print(f"❌ Error updating playback in DB: {str(e)}")
+        return False
+
+
+@app.route('/api/update-playback', methods=['POST'])
+def api_update_playback():
+    """API endpoint to update playback progress"""
+    try:
+        data = request.get_json()
+        user_id = data.get('user_id')
+        book_id = data.get('book_id')
+        chapter_id = data.get('chapter_id')
+        duration = data.get('duration', 0)
+        progress = data.get('progress', 0)
+        
+        if not all([user_id, book_id]):
+            return jsonify({"success": False, "error": "Missing required fields"}), 400
+        
+        success = update_playback(user_id, book_id, chapter_id, duration, progress)
+        
+        return jsonify({
+            "success": success,
+            "message": "Progress updated successfully" if success else "Failed to update progress"
+        })
+        
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+######## my_library - update_playback_progress/playback ########
+######## browse_books - update_playback_progress/playback ########
+
+
 
 import requests
 
 if __name__ == "__main__":
-    print("Testing database connection...")
-    app.run(debug=True, port=8000)
-    # app.run(debug=True, host="0.0.0.0", port=8000)
+    # print("Testing database connection...")
+    b.check_database_status()
+    # s.check_backblaze_status()
+    # app.run(debug=True, port=8000)
+    app.run(debug=True, host="0.0.0.0", port=8000)
 else:
     # Vercel serverless function handler
     def handler(event, context):

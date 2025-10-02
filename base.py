@@ -36,6 +36,7 @@ def MySQL_db():
             'autocommit': True
         }
         connection = connect(**config)
+        print(f"**Database innitiate: {'✅ MySQL Connected.' if  connection else '❌ MySQL Disconnected'}")
         # print("✅ MySQL connection successful!")
         return connection
         # return mysql.connector.connect(os.getenv('mysql_DATABASE_URL'))
@@ -65,7 +66,7 @@ def MySQL_db():
 # from psycopg2.extras import execute_values
 # from urllib.parse import urlparse
             
-    
+
 def postgreSQL_db():
     DATABASE_URL = os.getenv('postgresql_DATABASE_URL')
     if not DATABASE_URL:
@@ -74,6 +75,7 @@ def postgreSQL_db():
     try:
         # import psycopg2
         connection = psycopg2.connect(DATABASE_URL)
+        # print(f"**Database innitiate: {'✅ postgreSQL Connected.' if  connection else '❌ postgreSQL Disconnected'}")
         return connection
         # result = urlparse(DATABASE_URL)
         # engine = create_engine(DATABASE_URL)
@@ -115,6 +117,12 @@ def conn():
     else:
         raise ValueError(f"Unknown database type: {DB_TYPE}")
 
+def check_database_status():
+    try:
+        print(f"**Database : {'✅ Connected' if  conn() else '❌ Disconnected'}")
+    except Exception as e:
+        print(f"❌ Database check failed: {e}")
+        return False
 
 def db_select(query, params=None, fetch_one=False):
     if DB_TYPE == 'mysql':
@@ -167,8 +175,6 @@ def db_select(query, params=None, fetch_one=False):
 def universal_db_select(query, params=None):
     # Use the unified DB_TYPE variable
     if DB_TYPE == 'mysql':
-    # if db == 'MySQL':
-        # Convert named parameters to MySQL format
         if isinstance(params, dict):
             param_values = tuple(params.values())
             for key in params.keys():
