@@ -138,8 +138,10 @@ def admin_dashboard():
     
     with tool_col3:
         if st.button("📋 Export Data", help="Export database to CSV"):
-            export_data()
-            st.success("Data exported successfully")
+            # export_data()
+            st.info("Export data - to be implemented")
+            st.write("This section will allow you to manage export in the library.")
+            #st.success("Data exported successfully")
 
 
 
